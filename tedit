@@ -1,0 +1,825 @@
+#!/usr/bin/env tclsh
+
+package require Tk
+
+namespace eval MyVars {
+    variable filename   ""
+    variable modified   ""
+    variable marks      [list]
+    variable folds_id   0
+    variable folds      [list]
+    variable hsearch    [list]
+    variable hreplace   [list]
+    variable show_mode  ""
+}
+
+################################################################################
+#
+# PROCEDURES
+#
+#
+proc ScratchPad {w tabs} {
+    if {$::view_scratchpad eq "false"} {
+        wm withdraw $w
+    } else {
+        if [winfo exists $w] {
+            wm deiconify $w
+        } else {
+            toplevel $w -class "Tedit"
+            wm title $w "ScratchPad - tEdit"
+            wm transient $w
+            wm protocol $w WM_DELETE_WINDOW "$w.menu invoke 4"
+
+            ttk::notebook $w.note
+            for {set i 1} {$i < $tabs} {incr i} {
+                frame $w.$i
+                text $w.t$i -wrap none \
+                    -xscrollcommand "$w.xscroll$i set" \
+                    -yscrollcommand "$w.yscroll$i set"
+                ttk::scrollbar $w.xscroll$i -orient horizontal \
+                    -command "$w.t$i xview"
+                ttk::scrollbar $w.yscroll$i -orient vertical \
+                    -command "$w.t$i yview"
+                ttk::sizegrip $w.sg$i
+                grid $w.t$i -in $w.$i -row 0 -column 0 -sticky news
+                grid $w.xscroll$i -in $w.$i -row 1 -column 0 -sticky we
+                grid $w.yscroll$i -in $w.$i -row 0 -column 1 -sticky ns
+                grid $w.sg$i -in $w.$i -row 1 -column 1
+                grid rowconfigure $w.$i $w.t$i -weight 1
+                grid columnconfigure $w.$i $w.t$i -weight 1
+                $w.note add "$w.$i" -text "Scratch $i" -underline 8
+            }
+            pack $w.note -fill both -expand true
+            ttk::notebook::enableTraversal $w.note
+            focus $w.t1
+
+            menu $w.menu -tearoff 0
+                $w.menu add command -label "Cut" \
+                    -underline 2 -accelerator "Control-X" \
+                    -command {event generate [focus] <<Cut>>}
+                $w.menu add command -label "Copy" \
+                    -underline 0 -accelerator "Control-C" \
+                    -command {event generate [focus] <<Copy>>}
+                $w.menu add command -label "Paste" \
+                    -underline 0 -accelerator "Control-V" \
+                    -command {event generate [focus] <<Paste>>}
+                $w.menu add separator
+                $w.menu add command -label "Hide ScratchPad" \
+                    -underline 5 -accelerator "F8" \
+                    -command {.m.view invoke "ScratchPad"}
+
+            bind $w <3>     "focus %W; tk_popup $w.menu %X %Y"
+            bind $w <F8>    "$w.menu invoke 4"
+
+            .m.view entryconfigure "ScratchPad Tabs" -state disable
+        }
+    }
+}
+
+proc SetModified {} {
+    set MyVars::modified [expr {[.text edit modified] ? "\[Modified\]" : ""}]
+}
+
+proc ClearModifiedFlag {w} {
+    $w edit reset
+    $w edit modified 0
+}
+
+proc UpdateGUI {filename} {
+    if {$filename eq ""} {
+        set MyVars::filename ""
+        .m.help entryconfigure 0 -state disabled
+        wm title . "tEdit"
+    } else {
+        set MyVars::filename $filename
+        .m.help entryconfigure 0 -state normal
+        wm title . "$filename - tEdit"
+        RecentAdd $filename
+    }
+}
+
+proc NewFile {} {
+    if {$::read_only eq "true"} {.m.view invoke "Read Only"}
+    .text delete 1.0 end
+    UpdateGUI ""
+    DeleteMark "all"
+    ClearModifiedFlag .text
+}
+
+proc OpenFileWindow {} {
+    set filename [tk_getOpenFile -title "Open File"]
+    if {$filename eq "" } {return}
+    if !{[file isfile $filename]} {
+        tk_messageBox -title "Cannot open file!" -icon error -type ok \
+            -message "Cannot open file:" \
+            -detail "$filename\nis a [file type $filename]."
+        return
+    }
+    OpenFile $filename
+}
+
+proc OpenFile {filename} {
+    if [catch {set filehandler [open $filename r]}] {return}
+    if {$::read_only eq "true"} {.m.view invoke "Read Only"}
+    .text delete 1.0 end
+    .text insert end [read $filehandler]
+    close $filehandler
+    .text mark set insert 1.0
+    if {[file writable $filename] == 0 && $::read_only eq "false"} {
+        .m.view invoke "Read Only"
+    }
+    UpdateGUI $filename
+    DeleteMark "all"
+    ClearModifiedFlag .text
+}
+
+proc SaveFileWindow {} {
+    set filename [tk_getSaveFile -title "Save As"]
+    if {$filename eq "" } {return}
+    SaveFile $filename
+}
+
+proc SaveFile {filename} {
+    if {$filename eq ""} {SaveFileWindow}
+    if [catch {set filehandler [open $filename w]}] {return}
+    puts -nonewline $filehandler [.text get 1.0 end-1c]
+    close $filehandler
+    UpdateGUI $filename
+    ClearModifiedFlag .text
+}
+
+proc AskSave {command} {
+    if {$MyVars::modified ne "" && $::read_only eq "false"} {
+        set answer [tk_messageBox -title "Save file?" -icon warning \
+            -type yesnocancel -default yes \
+            -message "File has changed!" -detail "Save changes?"]
+        switch -- $answer {
+            yes {
+                SaveFile $MyVars::filename
+                if {$MyVars::modified ne ""} {return}
+                $command
+            }
+            no      {$command}
+            cancel  {return}
+        }
+    } else {
+        $command
+    }
+}
+
+proc RecentAdd {filename} {
+    set recent [.l_recent get 0 end]
+    if {$filename ni $recent} {
+        .l_recent insert 0 $filename
+        .m.file entryconfigure "Recent Files..." -state normal
+        if {[llength $recent] == 5} {
+            grid .ysb_recent
+        }
+    }
+}
+
+proc RecentOpen {} {
+    set filename [.l_recent get active]
+    if {$filename eq $MyVars::filename} {return}
+    if {$MyVars::modified ne "" && $::read_only eq "false"} {
+        set answer [tk_messageBox -title "Save file?" -icon warning \
+            -type yesnocancel -default yes \
+            -message "File has changed!" -detail "Save changes?"]
+        switch -- $answer {
+            yes {
+                SaveFile $MyVars::filename
+                if {$MyVars::modified ne ""} {return}
+                OpenFile $filename
+            }
+            no      {OpenFile $filename}
+            cancel  {return}
+        }
+    } else {
+        OpenFile $filename
+    }
+}
+
+proc UndoCommand {} {
+    if [catch {.text edit undo}] {return}
+}
+
+proc RedoCommand {} {
+    if [catch {.text edit redo}] {return}
+}
+
+proc Fold {w tag} {
+    if {[$w tag ranges $tag] eq ""} {return}
+    lassign [$w tag ranges $tag] from to
+    set fold $w.fold[incr MyVars::folds_id]
+    scan $from %d from_line
+    scan $to %d to_line
+    set fold_lines [$w count -lines $from $to+1line]
+    set fold_line [$w get $from_line.0 $from_line.end]
+    set fold_text "\u25b6\u25b6 $fold_lines lines: $fold_line"
+    button $fold -text "$fold_text" -padx 0 -pady 0 -relief flat \
+        -command [list UnFold $w $fold]
+    lappend MyVars::folds $fold
+    $w tag add $fold $from_line.0 $to_line.end
+    $w tag configure $fold -elide "true"
+    $w window create $from_line.0 -window $fold
+    $w tag remove $tag $from $to
+}
+
+proc UnFold {w which} {
+    switch -- $which {
+        ""  {return}
+        all {
+            foreach fold $MyVars::folds {
+                $w tag configure $fold -elide "false"
+                destroy $fold
+            }
+        }
+        default {
+            $w tag configure $which -elide "false"
+            destroy $which
+        }
+    }
+}
+
+proc Find {w what tag} {
+    if {$what eq ""} {
+        .cb_search configure -style white.TCombobox; return
+    }
+    if {$what ni $MyVars::hsearch} {
+        lappend MyVars::hsearch $what
+    }
+    foreach {from to} [$w tag ranges $tag] {
+        $w tag remove $tag $from $to
+    }
+    if [catch {set command [list $w search $::reg_exp -count n -- $what insert+2c]}] {
+        .cb_search configure -style red.TCombobox; return
+    }
+    if {$::match_case eq "false"} {
+        set command [linsert $command 2 -nocase]
+    }
+    set position [{*}$command]
+    if {$position ne ""} {
+        .cb_search configure -style white.TCombobox
+        $w mark set insert $position
+        $w see $position
+        $w tag add $tag $position $position+${n}c
+        return 1
+    } else {
+        .cb_search configure -style .red.TCombobox
+        return 0
+    }
+}
+
+proc Replace {w what with tag} {
+    if {$with ni $MyVars:::hreplace} {
+        lappend MyVars::hreplace $with
+    }
+    if {[$w tag ranges $tag] ne ""} {
+        $w replace {*}[$w tag ranges $tag] $with
+        Find $w $what $tag
+        return 1
+    } else {
+        return 0
+    }
+}
+
+proc ReplaceAll {w what with tag} {
+    set all 1
+    while {$all} {set all [Replace $w $what $with $tag]}
+}
+
+proc ClearSelection {w selector} {
+    foreach {from to} [$w tag ranges $selector] {
+        $w tag remove $selector $from $to
+    }
+}
+
+proc LineMark {w} {
+    set mark [$w count -lines 1.0 insert+1line]
+    if {"Line $mark" ni $MyVars::marks} {
+        lappend MyVars::marks "Line $mark"
+        $w tag configure $mark -background cyan
+        $w tag add $mark "$mark.0" "$mark.end"
+    }
+}
+
+proc GotoMark {w} {
+    if [catch {
+        scan [.l_marks get active] %s%d smth mark
+        $w mark set insert $mark.0
+        $w see $mark.0
+    }] {return}
+}
+
+proc DeleteMark {which} {
+    if {$which eq "all"} {
+        foreach mark $MyVars::marks {
+            scan $mark %s%d smth mark
+            .text tag delete $mark
+        }
+        .l_marks delete 0 end
+    } else {
+        if [catch {
+            scan [.l_marks get active] %s%d smth mark
+            .l_marks delete active
+            .text tag delete $mark
+        }] {return}
+    }
+}
+
+proc ToggleView {w show} {
+    if {$show eq "false"} {
+        grid remove $w
+        focus .text
+    } else {
+        grid $w
+        switch -- $w {
+            .lf_recent  {focus .l_recent}
+            .f_find     {focus .cb_search}
+            .lf_replace {focus .cb_replace}
+        }
+    }
+}
+
+proc ToggleSafeMode {} {
+    set MyVars::show_mode [expr {$::read_only eq "true" ? "\[Safe Mode\]" : ""}]
+    set state [expr {$::read_only eq "true" ? "disabled" : "normal"}]
+    foreach widget [list .text .ck_replace .cb_replace .b_replace .b_replaceall] {
+        $widget configure -state $state
+    }
+    .m.file entryconfigure "Save"   -state $state
+    .m.edit entryconfigure "Undo"   -state $state
+    .m.edit entryconfigure "Redo"   -state $state
+    .m.edit entryconfigure "Cut"    -state $state
+    .m.edit entryconfigure "Paste"  -state $state
+    if {$state eq "disabled"} {
+        bind .cb_replace <3> {}
+    } else {
+        bind .cb_replace <3> {focus %W; tk_popup .cb_popup %X %Y}
+    }
+}
+
+proc SetTabStop {w tabstop} {
+    $w configure -tabs "[expr {$tabstop * [font measure [$w cget -font] 0]}] left"
+    .m.options entryconfigure 10 -label "Tabs \u21D2 $tabstop Spaces"
+}
+
+proc TabsToSpaces {w} {
+    set answer [tk_messageBox -title "Convert Tabs into Spaces?" -icon warning -type yesno -default no \
+        -message "This will convert all Tab characters into $::tabstop Spaces!" \
+        -detail "It cannot be undone. Are you sure you want to continue?"]
+    if {$answer eq "no"} {return}
+    switch -- $::tabstop {
+        2   {set tabstop {  }}
+        3   {set tabstop {   }}
+        4   {set tabstop {    }}
+        6   {set tabstop {      }}
+        8   {set tabstop {        }}
+    }
+    set text_tabs [$w get 1.0 end-1c]
+    regsub -all {\t} $text_tabs $tabstop out_line
+    $w replace 1.0 end $out_line
+}
+
+proc SetFont {w tabstop} {
+
+    proc FontSelection {w font} {
+        $w configure -font [font actual $font]
+    }
+
+    tk fontchooser configure -title "Set Font" -parent .
+    tk fontchooser [expr {\
+        [tk fontchooser configure -visible] ? "hide" : "show"}]
+    tk fontchooser configure -font [$w cget -font] \
+        -command [list FontSelection $w]
+    $w configure -tabs "[expr {$tabstop * [font measure [$w cget -font] 0]}] left"
+}
+
+proc SetColor {w argument} {
+    if {$argument eq "insertbackground"} {
+        set color [tk_chooseColor -title "Set cursor color" \
+            -initialcolor [$w cget -$argument]]
+        if {$color eq ""} {return}
+        $w configure -$argument $color
+    } else {
+        set color [tk_chooseColor -title "Set $argument color" \
+            -initialcolor [$w cget -$argument]]
+        if {$color eq ""} {return}
+        foreach widget [list $w .l_recent .l_marks] {
+            $widget configure -$argument $color
+            $widget configure -selectbackground [$widget cget -foreground]
+            $widget configure -selectforeground [$widget cget -background]
+        }
+    }
+}
+
+proc FileDetails {file} {
+    if [catch {tk_messageBox \
+        -title "File Details" -icon info -type ok \
+        -message "[file tail $file]" \
+        -detail "\
+            Size:\t[file size $file] Bytes\n\
+            Lines:\t[.text count -lines 1.0 end]\n\
+            Writable:\t[expr {[file writable $file] ? "Yes" : "No"}]"
+        }] {return}
+}
+
+proc SystemDetails {} {
+    if [catch {tk_messageBox \
+        -title "System Details" -icon info -type ok \
+        -message "Tcl/Tk Version: [info patchlevel]" \
+        -detail "\
+            User Name:\t$::tcl_platform(user)\n\
+            Hostname:\t[info hostname]\n\
+            OS Family:\t$::tcl_platform(platform)\n\
+            OS Identifier:\t$::tcl_platform(os)\n\
+            OS Version:\t$::tcl_platform(osVersion)\n\
+            Architecture:\t$::tcl_platform(machine)\n\
+            Window System:\t[tk windowingsystem]"
+        }] {return}
+}
+
+proc HelpAbout {} {
+    tk_messageBox \
+        -title "About tEdit" -icon info -type ok \
+        -message "tEdit" \
+        -detail "is a simple text editor,\nwritten in pure Tcl/Tk.\n\n\
+Copyright \u00A9 2015 Thanos Zygouris <athanasios.zygouris@gmail.com>"
+}
+
+################################################################################
+#
+# VARIABLE INITIALIZATION & STYLES
+#
+#
+set view_search     "false"
+set view_recent     "false"
+set view_marks      "false"
+set view_menubar    ".m"
+set view_statusbar  "true"
+set view_yscroll    "true"
+set view_xscroll    "true"
+set read_only       "false"
+set word_wrap       "none"
+set view_scratchpad "false"
+set scratchpadtabs  4
+set tabstop         4
+set blockcursor     "false"
+set search          ""
+set match_case      "false"
+set reg_exp         "-exact"
+set view_replace    "false"
+set replace         ""
+set selector        "hilite_search"
+
+ttk::style configure white.TCombobox    -fieldbackground white
+ttk::style configure red.TCombobox      -fieldbackground red
+
+################################################################################
+#
+# MENUS
+#
+#
+menu .m -tearoff 0
+    menu .m.file -tearoff 0
+    .m add cascade -label "File" -menu .m.file -underline 0
+        .m.file add command -label "New" -underline 0 \
+            -command {AskSave NewFile}
+        .m.file add command -label "Open..." -underline 0 \
+            -accelerator "Control-O" -command {AskSave OpenFileWindow}
+        .m.file add command -label "Save" -underline 0 \
+            -accelerator "Control-S" -command {SaveFile $MyVars::filename}
+        .m.file add command -label "Save As..." -underline 5 \
+            -accelerator "Shift-Control-S" -command {SaveFileWindow}
+        .m.file add separator
+        .m.file add checkbutton -label "Recent Files..." -underline 0 \
+            -accelerator "F2" -state "disabled" \
+            -variable view_recent -onvalue "true" -offvalue "false" \
+            -command {ToggleView .lf_recent $view_recent}
+        .m.file add separator
+        .m.file add command -label "Exit" -underline 1 \
+            -accelerator "Control-Q" -underline 1 -command {AskSave exit}
+    menu .m.edit -tearoff 0
+    .m add cascade -label "Edit" -menu .m.edit -underline 0
+        .m.edit add command -label "Undo" -underline 0 \
+            -accelerator "Control-Z" -command {UndoCommand}
+        .m.edit add command -label "Redo" -underline 0 \
+            -accelerator "Control-Shift-Z" -command {RedoCommand}
+        .m.edit add separator
+        .m.edit add command -label "Cut" -underline 2 \
+            -accelerator "Control-X" -command [list tk_textCut .text]
+        .m.edit add command -label "Copy" -underline 0 \
+            -accelerator "Control-C" -command [list tk_textCopy .text]
+        .m.edit add command -label "Paste" -underline 0 \
+            -accelerator "Control-V" -command [list tk_textPaste .text]
+        .m.edit add separator
+        .m.edit add command -label "Fold Selection" -underline 0 \
+            -accelerator "Control-J" -command [list Fold .text sel]
+        .m.edit add command -label "Unfold All" -underline 7 \
+            -accelerator "Control-Shift-J" -command [list UnFold .text all]
+    menu .m.search -tearoff 0
+    .m add cascade -label "Search" -menu .m.search -underline 0
+        .m.search add checkbutton -label "Search..." -underline 0 \
+            -accelerator "Control-F" \
+            -variable view_search -onvalue "true" -offvalue "false" \
+            -command {ToggleView .f_find $view_search}
+        .m.search add command -label "Clear Selection" -underline 0 \
+            -accelerator "Control-L" -command [list ClearSelection .text $selector]
+    menu .m.marks -tearoff 0
+    .m add cascade -label "Marks" -menu .m.marks -underline 0
+        .m.marks add checkbutton -label "Marks..." -underline 0 \
+            -accelerator "F9" \
+            -variable view_marks -onvalue "true" -offvalue "false" \
+            -command {ToggleView .lf_marks $view_marks}
+        .m.marks add command -label "Mark Line" -underline 5 \
+            -accelerator "Control-M" -command [list LineMark .text]
+        .m.marks add command -label "Clear Marks" -underline 0 \
+            -command [list DeleteMark all]
+    menu .m.view -tearoff 0
+    .m add cascade -label "View" -menu .m.view -underline 0
+        .m.view add checkbutton -label "Read Only" -underline 0 \
+            -accelerator "Control-R" \
+            -variable read_only -onvalue "true" -offvalue "false" \
+            -command {ToggleSafeMode}
+        .m.view add separator
+        .m.view add checkbutton -label "Menu Bar" -underline 0 \
+            -variable view_menubar -onvalue ".m" -offvalue {} \
+            -command {. configure -menu $view_menubar}
+        .m.view add checkbutton -label "Status Bar" -underline 0 \
+            -variable view_statusbar -onvalue "true" -offvalue "false" \
+            -command {ToggleView .f_statusbar $view_statusbar}
+        .m.view add checkbutton -label "Vertical Scrollbar" -underline 0 \
+            -variable view_yscroll -onvalue "true" -offvalue "false" \
+            -command {ToggleView .ysb_text $view_yscroll}
+        .m.view add checkbutton -label "Horizontal Scrollbar" -underline 0 \
+            -variable view_xscroll -onvalue "true" -offvalue "false" \
+            -command {ToggleView .xsb_text $view_xscroll}
+        .m.view add separator
+        .m.view add checkbutton -label "ScratchPad" -underline 7 \
+            -accelerator "F8" \
+            -variable view_scratchpad -onvalue "true" -offvalue "false" \
+            -command {ScratchPad .scratchpad $scratchpadtabs}
+        menu .m.view.tabs -tearoff 0
+        .m.view add cascade -label "ScratchPad Tabs" \
+                -menu .m.view.tabs -underline 11
+            .m.view.tabs add radiobutton -label "1" -underline 0 \
+                -variable scratchpadtabs -value 2
+            .m.view.tabs add radiobutton -label "2" -underline 0 \
+                -variable scratchpadtabs -value 3
+            .m.view.tabs add radiobutton -label "3" -underline 0 \
+                -variable scratchpadtabs -value 4
+            .m.view.tabs add radiobutton -label "4" -underline 0 \
+                -variable scratchpadtabs -value 5
+            .m.view.tabs add radiobutton -label "5" -underline 0 \
+                -variable scratchpadtabs -value 6
+            .m.view.tabs add radiobutton -label "9" -underline 0 \
+                -variable scratchpadtabs -value 10
+    menu .m.options -tearoff 0
+    .m add cascade -label "Options" -menu .m.options -underline 0
+        .m.options add checkbutton -label "Word Wrap" -underline 5 \
+            -accelerator "Control-W" \
+            -variable word_wrap -onvalue "word" -offvalue "none" \
+            -command {.text configure -wrap $word_wrap}
+        .m.options add separator
+        .m.options add command -label "Set Font..." -underline 0 \
+            -command {SetFont .text $tabstop}
+        .m.options add checkbutton -label "Block Cursor" -underline 4 \
+            -variable blockcursor -onvalue "true" -offvalue "false" \
+            -command {.text configure -blockcursor $blockcursor}
+        .m.options add separator
+        .m.options add command -label "Cursor Color..." -underline 0 \
+            -command {SetColor .text "insertbackground"}
+        .m.options add command -label "Foreground Color..." -underline 0 \
+            -command {SetColor .text "foreground"}
+        .m.options add command -label "Background Color..." -underline 0 \
+            -command {SetColor .text "background"}
+        .m.options add separator
+        menu .m.options.tabstop -tearoff 0
+        .m.options add cascade -label "Tab Stops" -underline 0 \
+                -menu .m.options.tabstop
+            .m.options.tabstop add radiobutton -label "2" -underline 0 \
+                -variable tabstop -value 2 -command {SetTabStop .text $tabstop}
+            .m.options.tabstop add radiobutton -label "3" -underline 0 \
+                -variable tabstop -value 3 -command {SetTabStop .text $tabstop}
+            .m.options.tabstop add radiobutton -label "4" -underline 0 \
+                -variable tabstop -value 4 -command {SetTabStop .text $tabstop}
+            .m.options.tabstop add radiobutton -label "6" -underline 0 \
+                -variable tabstop -value 6 -command {SetTabStop .text $tabstop}
+            .m.options.tabstop add radiobutton -label "8" -underline 0 \
+                -variable tabstop -value 8 -command {SetTabStop .text $tabstop}
+        .m.options add command -label "Tabs \u21d2 $tabstop Spaces" \
+                -underline 7 -command [list TabsToSpaces .text]
+    menu .m.help -tearoff 0
+    .m add cascade -label "Help" -menu .m.help -underline 0
+        .m.help add command -label "File Details..." -underline 0 \
+            -command {FileDetails $MyVars::filename} -state disabled
+        .m.help add command -label "System Details..." -underline 0 \
+            -command {SystemDetails}
+        .m.help add separator
+        .m.help add command -label "About tEdit..." -underline 1 \
+            -accelerator "F1" -command {HelpAbout}
+. configure -menu .m
+
+menu .cb_popup -tearoff 0
+    .cb_popup add command -label "Cut" \
+        -underline 2 -accelerator "Control-X" \
+        -command {event generate [focus] <<Cut>>}
+    .cb_popup add command -label "Copy" \
+        -underline 0 -accelerator "Control-C" \
+        -command {event generate [focus] <<Copy>>}
+    .cb_popup add command -label "Paste" \
+        -underline 0 -accelerator "Control-V" \
+        -command {event generate [focus] <<Paste>>}
+
+################################################################################
+#
+# WIDGETS
+#
+#
+labelframe .lf_recent -borderwidth 1 -relief flat \
+    -text "Recently Opened Files:"
+    listbox .l_recent -relief flat -borderwidth 1 -height 5 \
+        -takefocus 0 -selectmode browse \
+        -yscrollcommand {.ysb_recent set}
+    ttk::scrollbar .ysb_recent -orient vertical -command {.l_recent yview}
+
+    grid .l_recent      -in .lf_recent -row 0 -column 0 -sticky we
+    grid .ysb_recent    -in .lf_recent -row 0 -column 1 -sticky ns
+
+    grid columnconfigure .lf_recent .l_recent -weight 1
+    grid remove .ysb_recent
+
+frame .f_text
+    labelframe .lf_marks -borderwidth 1 -relief flat -text "Marks:"
+    listbox .l_marks -listvariable MyVars::marks -takefocus 0 -width 10
+
+    grid .l_marks   -in .lf_marks   -row 0 -column 0 -sticky ns
+
+    grid rowconfigure .lf_marks .l_marks -weight 1
+
+    text .text -setgrid false -relief flat -borderwidth 0 -takefocus 0 \
+        -xscrollcommand {.xsb_text set} \
+        -yscrollcommand {.ysb_text set} \
+        -wrap $word_wrap -undo true -autoseparators true \
+        -tabstyle wordprocessor \
+        -blockcursor false -insertunfocussed hollow
+        .text tag configure hilite_search -foreground black -background orange
+    ttk::scrollbar .xsb_text -orient horizontal -command {.text xview}
+    ttk::scrollbar .ysb_text -orient vertical -command {.text yview}
+
+    grid .lf_marks  -in .f_text -row 0 -column 0 -sticky ns
+    grid .text      -in .f_text -row 0 -column 1 -sticky news
+    grid .ysb_text  -in .f_text -row 0 -column 2 -sticky ns
+    grid .xsb_text  -in .f_text -row 1 -column 0 -sticky we -columnspan 2
+
+    grid rowconfigure       .f_text .text -weight 1
+    grid columnconfigure    .f_text .text -weight 1
+    grid remove .lf_marks
+
+frame .f_find -borderwidth 1 -relief sunken
+    labelframe .lf_search -borderwidth 1 -relief flat -text "Search for:"
+        ttk::combobox .cb_search -style white.TCombobox \
+            -textvariable search -values $MyVars::hsearch \
+            -postcommand {.cb_search configure -values $MyVars::hsearch}
+        button .b_findnext -text "Find Next" -width 7 \
+            -underline 5 -takefocus 0 \
+            -command {Find .text $search $selector}
+        button .b_findclose -text "Close" -width 7 \
+            -underline 0 -takefocus 0 \
+            -command {.m.search invoke "Search..."}
+        checkbutton .ck_matchcase -text "Match Case" \
+            -underline 0 -takefocus 0 \
+            -variable match_case -onvalue "true" -offvalue "false"
+        checkbutton .ck_regexp -text "Regular Expression" \
+            -underline 8 -takefocus 0 \
+            -variable reg_exp -onvalue "-regexp" -offvalue "-exact"
+        checkbutton .ck_replace -text "Replace" \
+            -underline 0 -takefocus 0 \
+            -variable view_replace -onvalue "true" -offvalue "false" \
+            -command {ToggleView .lf_replace $view_replace}
+
+        grid .cb_search     -in .lf_search -row 0 -column 0 -sticky w
+        grid .b_findnext    -in .lf_search -row 0 -column 1
+        grid .b_findclose   -in .lf_search -row 0 -column 2
+        grid .ck_matchcase  -in .lf_search -row 0 -column 3
+        grid .ck_regexp     -in .lf_search -row 0 -column 4
+        grid .ck_replace    -in .lf_search -row 0 -column 5 -sticky e
+
+        grid columnconfigure .lf_search .ck_replace -weight 1
+
+    labelframe .lf_replace -borderwidth 1 -relief flat -text "Replace with:"
+        ttk::combobox .cb_replace -style white.TCombobox \
+            -textvariable replace -values $MyVars::hreplace \
+            -postcommand {.cb_replace configure -values $MyVars::hreplace}
+        button .b_replace -text "Replace" -width 7 \
+            -underline 0 -takefocus 0 \
+            -command {Replace .text $search $replace $selector}
+        button .b_replaceall -text "All" -width 7 \
+            -underline 0 -takefocus 0 \
+            -command {ReplaceAll .text $search $replace $selector}
+
+        grid .cb_replace    -in .lf_replace -row 0 -column 0
+        grid .b_replace     -in .lf_replace -row 0 -column 1
+        grid .b_replaceall  -in .lf_replace -row 0 -column 2
+
+    grid .lf_search     -in .f_find -row 0 -column 0 -sticky we
+    grid .lf_replace    -in .f_find -row 1 -column 0 -sticky we
+
+    grid columnconfigure .f_find .lf_search -weight 1
+
+frame .f_statusbar -borderwidth 1 -relief sunken
+    label .lb_filename -relief flat -textvariable MyVars::filename
+    label .lb_safemode -relief flat -textvariable MyVars::show_mode
+    label .lb_modified -relief flat -textvariable MyVars::modified
+    ttk::sizegrip .lb_sizegrip
+
+    grid .lb_filename -in .f_statusbar -row 0 -column 0 -sticky w
+    grid .lb_safemode -in .f_statusbar -row 0 -column 2
+    grid .lb_modified -in .f_statusbar -row 0 -column 3
+    grid .lb_sizegrip -in .f_statusbar -row 0 -column 4 -sticky e
+
+    grid columnconfigure .f_statusbar .lb_filename -weight 1
+
+grid .lf_recent     -row 0 -column 0 -sticky news
+grid .f_text        -row 1 -column 0 -sticky news
+grid .f_find        -row 2 -column 0 -sticky we
+grid .f_statusbar   -row 3 -column 0 -sticky we
+
+grid rowconfigure       . .f_text -weight 1
+grid columnconfigure    . .f_text -weight 1
+
+grid remove .lf_recent .f_find .lf_replace
+
+################################################################################
+#
+# BINDINGS
+#
+#
+bind .text  <Triple-ButtonRelease-1>    {.m.marks invoke "Mark Line"}
+bind .text  <3>                         {focus %W; tk_popup .m.edit %X %Y}
+bind .text  <Control-3>                 {focus %W; tk_popup .m %X %Y}
+bind .text  <<Modified>>                {SetModified}
+
+# Control-o/f is predefined in Text widget
+bind Text   <Control-o>     {return}
+bind Text   <Control-f>     {return}
+
+bind . <Control-o>          {.m.file    invoke "Open..."}
+bind . <Control-s>          {.m.file    invoke "Save"}
+bind . <Control-Shift-S>    {.m.file    invoke "Save As..."}
+bind . <F2>                 {.m.file    invoke "Recent Files..."}
+bind . <Control-q>          {.m.file    invoke "Exit"}
+bind . <Control-Shift-Q>    {exit}
+bind . <Control-z>          {.m.edit    invoke "Undo"}
+bind . <Control-Shift-Z>    {.m.edit    invoke "Redo"}
+bind . <Control-j>          {.m.edit    invoke "Fold Selection"}
+bind . <Control-J>          {.m.edit    invoke "Unfold All"}
+bind . <Control-f>          {.m.search  invoke "Search..."}
+bind . <Control-l>          {.m.search  invoke "Clear Selection"}
+bind . <F9>                 {.m.marks   invoke "Marks..."}
+bind . <Control-m>          {.m.marks   invoke "Mark Line"}
+bind . <Control-r>          {.m.view    invoke "Read Only"}
+bind . <F8>                 {.m.view    invoke "ScratchPad"}
+bind . <Control-w>          {.m.options invoke "Word Wrap"}
+bind . <F1>                 {.m.help    invoke "About tEdit..."}
+
+bind .l_recent  <Return>                    {RecentOpen}
+bind .l_recent  <KP_Enter>                  {RecentOpen}
+bind .l_recent  <Double-ButtonRelease-1>    {RecentOpen}
+
+bind .l_marks   <Return>                    [list GotoMark .text]
+bind .l_marks   <KP_Enter>                  [list GotoMark .text]
+bind .l_marks   <Double-ButtonRelease-1>    [list GotoMark .text]
+bind .l_marks   <Delete>                    [list DeleteMark ""]
+
+bind .cb_search     <Return>    {.b_findnext invoke}
+bind .cb_search     <KP_Enter>  {.b_findnext invoke}
+bind .cb_search     <Escape>    {.m.search invoke "Search..."}
+bind .cb_search     <3>         {focus %W; tk_popup .cb_popup %X %Y}
+bind .cb_replace    <3>         {focus %W; tk_popup .cb_popup %X %Y}
+
+################################################################################
+#
+# MISCELANEOUS
+#
+#
+SetTabStop .text $tabstop
+focus .text
+
+wm title    . "tEdit"
+wm minsize  . 675 425
+wm protocol . WM_DELETE_WINDOW {.m.file invoke "Exit"}
+
+################################################################################
+#
+# OPEN FILE FROM COMMAND LINE
+#
+#
+if {$argc > 0} {
+    set MyVars::filename [lindex $argv 0]
+    if {![file isfile $MyVars::filename] && [file exists $MyVars::filename]} {
+        puts stderr "error: $MyVars::filename is a [file type $MyVars::filename]"
+        exit
+    }
+    OpenFile $MyVars::filename
+}
