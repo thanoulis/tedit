@@ -98,7 +98,24 @@ proc UpdateGUI {filename} {
     }
 }
 
+proc AskSave {} {
+    if {$MyVars::modified ne "" && $::read_only eq "false"} {
+        set answer [tk_messageBox -title "Save file?" -icon warning \
+            -type yesnocancel -default yes \
+            -message "File has changed!" -detail "Save changes?"]
+        switch -- $answer {
+            yes {
+                SaveFile $MyVars::filename
+                if {$MyVars::modified ne ""} {return "cancel"}
+            }
+            no      {}
+            cancel  {return "cancel"}
+        }
+    }
+}
+
 proc NewFile {} {
+    if {[AskSave] eq "cancel"} {return}
     if {$::read_only eq "true"} {.m.view invoke "Read Only"}
     .text delete 1.0 end
     UpdateGUI ""
@@ -107,6 +124,7 @@ proc NewFile {} {
 }
 
 proc OpenFileWindow {} {
+    if {[AskSave] eq "cancel"} {return}
     set filename [tk_getOpenFile -title "Open File"]
     if {$filename eq "" } {return}
     if !{[file isfile $filename]} {
@@ -148,23 +166,9 @@ proc SaveFile {filename} {
     ClearModifiedFlag .text
 }
 
-proc AskSave {command} {
-    if {$MyVars::modified ne "" && $::read_only eq "false"} {
-        set answer [tk_messageBox -title "Save file?" -icon warning \
-            -type yesnocancel -default yes \
-            -message "File has changed!" -detail "Save changes?"]
-        switch -- $answer {
-            yes {
-                SaveFile $MyVars::filename
-                if {$MyVars::modified ne ""} {return}
-                $command
-            }
-            no      {$command}
-            cancel  {return}
-        }
-    } else {
-        $command
-    }
+proc Exit {} {
+    if {[AskSave] eq "cancel"} {return}
+    exit
 }
 
 proc RecentAdd {filename} {
@@ -179,24 +183,10 @@ proc RecentAdd {filename} {
 }
 
 proc RecentOpen {} {
+    if {[AskSave] eq "cancel"} {return}
     set filename [.l_recent get active]
     if {$filename eq $MyVars::filename} {return}
-    if {$MyVars::modified ne "" && $::read_only eq "false"} {
-        set answer [tk_messageBox -title "Save file?" -icon warning \
-            -type yesnocancel -default yes \
-            -message "File has changed!" -detail "Save changes?"]
-        switch -- $answer {
-            yes {
-                SaveFile $MyVars::filename
-                if {$MyVars::modified ne ""} {return}
-                OpenFile $filename
-            }
-            no      {OpenFile $filename}
-            cancel  {return}
-        }
-    } else {
-        OpenFile $filename
-    }
+    OpenFile $filename
 }
 
 proc UndoCommand {} {
@@ -295,11 +285,14 @@ proc ClearSelection {w selector} {
 }
 
 proc LineMark {w} {
-    set mark [$w count -lines 1.0 insert+1line]
-    if {"Line $mark" ni $MyVars::marks} {
-        lappend MyVars::marks "Line $mark"
+    set linenum [$w count -lines 1.0 insert+1line]
+    set mark "Line $linenum"
+    if {$mark ni $MyVars::marks} {
+        lappend MyVars::marks $mark
         $w tag configure $mark -background cyan
-        $w tag add $mark "$mark.0" "$mark.end"
+        $w tag add $mark "$linenum.0" "$linenum.end"
+    } else {
+        DeleteMark $mark
     }
 }
 
@@ -312,18 +305,21 @@ proc GotoMark {w} {
 }
 
 proc DeleteMark {which} {
-    if {$which eq "all"} {
-        foreach mark $MyVars::marks {
-            scan $mark %s%d smth mark
-            .text tag delete $mark
+    switch -- $which {
+        all {
+            foreach mark $MyVars::marks {
+                .text tag delete $mark
+            }
+            .l_marks delete 0 end
         }
-        .l_marks delete 0 end
-    } else {
-        if [catch {
-            scan [.l_marks get active] %s%d smth mark
+        "" {
+            .text tag delete [.l_marks get active]
             .l_marks delete active
-            .text tag delete $mark
-        }] {return}
+        }
+        default {
+            .text tag delete $which
+            .l_marks delete [lsearch $MyVars::marks $which]
+        }
     }
 }
 
@@ -444,7 +440,7 @@ proc HelpAbout {} {
         -title "About tEdit" -icon info -type ok \
         -message "tEdit" \
         -detail "is a simple text editor,\nwritten in pure Tcl/Tk.\n\n\
-Copyright \u00A9 2015 Thanos Zygouris <athanasios.zygouris@gmail.com>"
+Copyright \u00A9 2014-2015 Thanos Zygouris <athanasios.zygouris@gmail.com>"
 }
 
 ################################################################################
@@ -484,9 +480,9 @@ menu .m -tearoff 0
     menu .m.file -tearoff 0
     .m add cascade -label "File" -menu .m.file -underline 0
         .m.file add command -label "New" -underline 0 \
-            -command {AskSave NewFile}
+            -command {NewFile}
         .m.file add command -label "Open..." -underline 0 \
-            -accelerator "Control-O" -command {AskSave OpenFileWindow}
+            -accelerator "Control-O" -command {OpenFileWindow}
         .m.file add command -label "Save" -underline 0 \
             -accelerator "Control-S" -command {SaveFile $MyVars::filename}
         .m.file add command -label "Save As..." -underline 5 \
@@ -498,7 +494,7 @@ menu .m -tearoff 0
             -command {ToggleView .lf_recent $view_recent}
         .m.file add separator
         .m.file add command -label "Exit" -underline 1 \
-            -accelerator "Control-Q" -underline 1 -command {AskSave exit}
+            -accelerator "Control-Q" -underline 1 -command {Exit}
     menu .m.edit -tearoff 0
     .m add cascade -label "Edit" -menu .m.edit -underline 0
         .m.edit add command -label "Undo" -underline 0 \
@@ -527,14 +523,14 @@ menu .m -tearoff 0
             -accelerator "Control-L" -command [list ClearSelection .text $selector]
     menu .m.marks -tearoff 0
     .m add cascade -label "Marks" -menu .m.marks -underline 0
-        .m.marks add checkbutton -label "Marks..." -underline 0 \
+        .m.marks add checkbutton -label "Show Marks..." -underline 0 \
             -accelerator "F9" \
             -variable view_marks -onvalue "true" -offvalue "false" \
             -command {ToggleView .lf_marks $view_marks}
-        .m.marks add command -label "Mark Line" -underline 5 \
+        .m.marks add command -label "Mark/Unmark" -underline 0 \
             -accelerator "Control-M" -command [list LineMark .text]
-        .m.marks add command -label "Clear Marks" -underline 0 \
-            -command [list DeleteMark all]
+        .m.marks add command -label "Clear All Marks" -underline 6 \
+            -accelerator "Control-Shift-M" -command [list DeleteMark all]
     menu .m.view -tearoff 0
     .m add cascade -label "View" -menu .m.view -underline 0
         .m.view add checkbutton -label "Read Only" -underline 0 \
@@ -755,7 +751,7 @@ grid remove .lf_recent .f_find .lf_replace
 # BINDINGS
 #
 #
-bind .text  <Triple-ButtonRelease-1>    {.m.marks invoke "Mark Line"}
+bind .text  <Triple-ButtonRelease-1>    {.m.marks invoke "Mark/Unmark"}
 bind .text  <3>                         {focus %W; tk_popup .m.edit %X %Y}
 bind .text  <Control-3>                 {focus %W; tk_popup .m %X %Y}
 bind .text  <<Modified>>                {SetModified}
@@ -776,8 +772,9 @@ bind . <Control-j>          {.m.edit    invoke "Fold Selection"}
 bind . <Control-J>          {.m.edit    invoke "Unfold All"}
 bind . <Control-f>          {.m.search  invoke "Search..."}
 bind . <Control-l>          {.m.search  invoke "Clear Selection"}
-bind . <F9>                 {.m.marks   invoke "Marks..."}
-bind . <Control-m>          {.m.marks   invoke "Mark Line"}
+bind . <F9>                 {.m.marks   invoke "Show Marks..."}
+bind . <Control-m>          {.m.marks   invoke "Mark/Unmark"}
+bind . <Control-M>          {.m.marks   invoke "Clear All Marks"}
 bind . <Control-r>          {.m.view    invoke "Read Only"}
 bind . <F8>                 {.m.view    invoke "ScratchPad"}
 bind . <Control-w>          {.m.options invoke "Word Wrap"}
