@@ -242,7 +242,6 @@ proc Search {w what which tag} {
     ClearHighlight $w $tag
     switch -- $which {
         "all" {
-            if {$::search_all eq "false"} {return}
             set command "1.0"
             while {1} {
                 set command [list $w search $::reg_exp -count n -- $what $command end]
@@ -287,6 +286,7 @@ proc Replace {w what with tag} {
         Search $w $what "one" $tag
         return 1
     } else {
+        .b_findnext flash
         return 0
     }
 }
@@ -484,7 +484,6 @@ set blockcursor     "false"
 set search          ""
 set match_case      "false"
 set reg_exp         "-exact"
-set search_all      "false"
 set view_replace    "false"
 set replace         ""
 
@@ -700,16 +699,12 @@ frame .f_find -borderwidth 1 -relief sunken
         button .b_findnext -text "Find Next" -width 7 \
             -underline 5 -takefocus 0 \
             -command {Search .text $search "one" tag_search}
-        button .b_findclose -text "Close" -width 7 \
+        button .b_findall -text "Find All" -width 7 \
             -underline 0 -takefocus 0 \
-            -command {.m.search invoke "Search..."}
+            -command {Search .text $search "all" tag_search_all}
         checkbutton .ck_matchcase -text "Match Case" \
             -underline 0 -takefocus 0 \
             -variable match_case -onvalue "true" -offvalue "false"
-        checkbutton .ck_searchall -text "Highlight All" \
-            -underline 0 -takefocus 0 \
-            -variable search_all -onvalue "true" -offvalue "false" \
-            -command {Search .text $search "all" tag_search_all}
         checkbutton .ck_regexp -text "Regular Expression" \
             -underline 8 -takefocus 0 \
             -variable reg_exp -onvalue "-regexp" -offvalue "-exact"
@@ -720,11 +715,10 @@ frame .f_find -borderwidth 1 -relief sunken
 
         grid .cb_search     -in .lf_search -row 0 -column 0 -sticky w
         grid .b_findnext    -in .lf_search -row 0 -column 1
-        grid .b_findclose   -in .lf_search -row 0 -column 2
+        grid .b_findall     -in .lf_search -row 0 -column 2
         grid .ck_matchcase  -in .lf_search -row 0 -column 3
-        grid .ck_searchall  -in .lf_search -row 0 -column 4
-        grid .ck_regexp     -in .lf_search -row 0 -column 5
-        grid .ck_replace    -in .lf_search -row 0 -column 6 -sticky e
+        grid .ck_regexp     -in .lf_search -row 0 -column 4
+        grid .ck_replace    -in .lf_search -row 0 -column 5 -sticky e
 
         grid columnconfigure .lf_search .ck_replace -weight 1
 
@@ -814,11 +808,13 @@ bind .l_marks   <KP_Enter>                  [list GotoMark .text]
 bind .l_marks   <Double-ButtonRelease-1>    [list GotoMark .text]
 bind .l_marks   <Delete>                    [list DeleteMark ""]
 
+bind .cb_search     <3>         {focus %W; tk_popup .cb_popup %X %Y}
 bind .cb_search     <Escape>    {.m.search invoke "Search..."}
 bind .cb_search     <Return>    {.b_findnext invoke}
 bind .cb_search     <KP_Enter>  {.b_findnext invoke}
-bind .cb_search     <3>         {focus %W; tk_popup .cb_popup %X %Y}
+
 bind .cb_replace    <3>         {focus %W; tk_popup .cb_popup %X %Y}
+bind .cb_replace    <Escape>    {.m.search invoke "Search..."}
 
 ################################################################################
 #
