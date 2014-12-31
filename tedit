@@ -218,7 +218,7 @@ proc Fold {w tag} {
 proc UnFold {w which} {
     switch -- $which {
         ""  {return}
-        all {
+        "all" {
             foreach fold $MyVars::folds {
                 $w tag configure $fold -elide "false"
                 destroy $fold
@@ -231,32 +231,50 @@ proc UnFold {w which} {
     }
 }
 
-proc Find {w what tag} {
+proc Search {w what which tag} {
     if {$what eq ""} {
-        .cb_search configure -style white.TCombobox; return
+        .cb_search configure -style white.TCombobox
+        return
     }
     if {$what ni $MyVars::hsearch} {
         lappend MyVars::hsearch $what
     }
-    foreach {from to} [$w tag ranges $tag] {
-        $w tag remove $tag $from $to
-    }
-    if [catch {set command [list $w search $::reg_exp -count n -- $what insert+2c]}] {
-        .cb_search configure -style red.TCombobox; return
-    }
-    if {$::match_case eq "false"} {
-        set command [linsert $command 2 -nocase]
-    }
-    set position [{*}$command]
-    if {$position ne ""} {
-        .cb_search configure -style white.TCombobox
-        $w mark set insert $position
-        $w see $position
-        $w tag add $tag $position $position+${n}c
-        return 1
-    } else {
-        .cb_search configure -style .red.TCombobox
-        return 0
+    ClearHighlight $w $tag
+    switch -- $which {
+        "all" {
+            if {$::search_all eq "false"} {return}
+            set command "1.0"
+            while {1} {
+                set command [list $w search $::reg_exp -count n -- $what $command end]
+                if {$::match_case eq "false"} {
+                    set command [linsert $command 2 -nocase]
+                }
+                set position [{*}$command]
+                if {$position eq ""} {break}
+                .cb_search configure -style white.TCombobox
+                $w tag configure $tag -background lightgreen
+                $w tag add $tag $position $position+${n}c
+                catch {$w tag lower $tag tag_search}
+                set command [$w index $position+${n}c]
+            }
+        }
+        "one" {
+            set command [list $w search $::reg_exp -count n -- $what insert+2c]
+            if {$::match_case eq "false"} {
+                set command [linsert $command 2 -nocase]
+            }
+            set position [{*}$command]
+            if {$position eq ""} {
+                .cb_search configure -style .red.TCombobox
+                return
+            }
+            .cb_search configure -style white.TCombobox
+            $w tag configure $tag -background yellow
+            $w tag add $tag $position $position+${n}c
+            $w tag raise $tag
+            $w see $position
+            $w mark set insert $position
+        }
     }
 }
 
@@ -266,7 +284,7 @@ proc Replace {w what with tag} {
     }
     if {[$w tag ranges $tag] ne ""} {
         $w replace {*}[$w tag ranges $tag] $with
-        Find $w $what $tag
+        Search $w $what "one" $tag
         return 1
     } else {
         return 0
@@ -278,9 +296,9 @@ proc ReplaceAll {w what with tag} {
     while {$all} {set all [Replace $w $what $with $tag]}
 }
 
-proc ClearSelection {w selector} {
-    foreach {from to} [$w tag ranges $selector] {
-        $w tag remove $selector $from $to
+proc ClearHighlight {w tags} {
+    foreach tag $tags {
+        $w tag delete $tag
     }
 }
 
@@ -291,6 +309,7 @@ proc LineMark {w} {
         lappend MyVars::marks $mark
         $w tag configure $mark -background cyan
         $w tag add $mark "$linenum.0" "$linenum.end"
+        $w tag raise $mark sel
     } else {
         DeleteMark $mark
     }
@@ -306,7 +325,7 @@ proc GotoMark {w} {
 
 proc DeleteMark {which} {
     switch -- $which {
-        all {
+        "all" {
             foreach mark $MyVars::marks {
                 .text tag delete $mark
             }
@@ -361,7 +380,8 @@ proc SetTabStop {w tabstop} {
 }
 
 proc TabsToSpaces {w} {
-    set answer [tk_messageBox -title "Convert Tabs into Spaces?" -icon warning -type yesno -default no \
+    set answer [tk_messageBox -title "Convert Tabs into Spaces?" \
+        -icon warning -type yesno -default no \
         -message "This will convert all Tab characters into $::tabstop Spaces!" \
         -detail "It cannot be undone. Are you sure you want to continue?"]
     if {$answer eq "no"} {return}
@@ -440,7 +460,7 @@ proc HelpAbout {} {
         -title "About tEdit" -icon info -type ok \
         -message "tEdit" \
         -detail "is a simple text editor,\nwritten in pure Tcl/Tk.\n\n\
-Copyright \u00A9 2014-2015 Thanos Zygouris <athanasios.zygouris@gmail.com>"
+Copyright \u00A9 2014-2015 Thanos Zygouris\n<athanasios.zygouris@gmail.com>"
 }
 
 ################################################################################
@@ -464,9 +484,9 @@ set blockcursor     "false"
 set search          ""
 set match_case      "false"
 set reg_exp         "-exact"
+set search_all      "false"
 set view_replace    "false"
 set replace         ""
-set selector        "hilite_search"
 
 ttk::style configure white.TCombobox    -fieldbackground white
 ttk::style configure red.TCombobox      -fieldbackground red
@@ -512,15 +532,16 @@ menu .m -tearoff 0
         .m.edit add command -label "Fold Selection" -underline 0 \
             -accelerator "Control-J" -command [list Fold .text sel]
         .m.edit add command -label "Unfold All" -underline 7 \
-            -accelerator "Control-Shift-J" -command [list UnFold .text all]
+            -accelerator "Control-Shift-J" -command [list UnFold .text "all"]
     menu .m.search -tearoff 0
     .m add cascade -label "Search" -menu .m.search -underline 0
         .m.search add checkbutton -label "Search..." -underline 0 \
             -accelerator "Control-F" \
             -variable view_search -onvalue "true" -offvalue "false" \
             -command {ToggleView .f_find $view_search}
-        .m.search add command -label "Clear Selection" -underline 0 \
-            -accelerator "Control-L" -command [list ClearSelection .text $selector]
+        .m.search add command -label "Clear Highlight" -underline 0 \
+            -accelerator "Control-L" \
+            -command [list ClearHighlight .text {tag_search tag_search_all}]
     menu .m.marks -tearoff 0
     .m add cascade -label "Marks" -menu .m.marks -underline 0
         .m.marks add checkbutton -label "Show Marks..." -underline 0 \
@@ -530,7 +551,7 @@ menu .m -tearoff 0
         .m.marks add command -label "Mark/Unmark" -underline 0 \
             -accelerator "Control-M" -command [list LineMark .text]
         .m.marks add command -label "Clear All Marks" -underline 6 \
-            -accelerator "Control-Shift-M" -command [list DeleteMark all]
+            -accelerator "Control-Shift-M" -command [list DeleteMark "all"]
     menu .m.view -tearoff 0
     .m add cascade -label "View" -menu .m.view -underline 0
         .m.view add checkbutton -label "Read Only" -underline 0 \
@@ -659,7 +680,6 @@ frame .f_text
         -wrap $word_wrap -undo true -autoseparators true \
         -tabstyle wordprocessor \
         -blockcursor false -insertunfocussed hollow
-        .text tag configure hilite_search -foreground black -background orange
     ttk::scrollbar .xsb_text -orient horizontal -command {.text xview}
     ttk::scrollbar .ysb_text -orient vertical -command {.text yview}
 
@@ -679,13 +699,17 @@ frame .f_find -borderwidth 1 -relief sunken
             -postcommand {.cb_search configure -values $MyVars::hsearch}
         button .b_findnext -text "Find Next" -width 7 \
             -underline 5 -takefocus 0 \
-            -command {Find .text $search $selector}
+            -command {Search .text $search "one" tag_search}
         button .b_findclose -text "Close" -width 7 \
             -underline 0 -takefocus 0 \
             -command {.m.search invoke "Search..."}
         checkbutton .ck_matchcase -text "Match Case" \
             -underline 0 -takefocus 0 \
             -variable match_case -onvalue "true" -offvalue "false"
+        checkbutton .ck_searchall -text "Highlight All" \
+            -underline 0 -takefocus 0 \
+            -variable search_all -onvalue "true" -offvalue "false" \
+            -command {Search .text $search "all" tag_search_all}
         checkbutton .ck_regexp -text "Regular Expression" \
             -underline 8 -takefocus 0 \
             -variable reg_exp -onvalue "-regexp" -offvalue "-exact"
@@ -698,8 +722,9 @@ frame .f_find -borderwidth 1 -relief sunken
         grid .b_findnext    -in .lf_search -row 0 -column 1
         grid .b_findclose   -in .lf_search -row 0 -column 2
         grid .ck_matchcase  -in .lf_search -row 0 -column 3
-        grid .ck_regexp     -in .lf_search -row 0 -column 4
-        grid .ck_replace    -in .lf_search -row 0 -column 5 -sticky e
+        grid .ck_searchall  -in .lf_search -row 0 -column 4
+        grid .ck_regexp     -in .lf_search -row 0 -column 5
+        grid .ck_replace    -in .lf_search -row 0 -column 6 -sticky e
 
         grid columnconfigure .lf_search .ck_replace -weight 1
 
@@ -709,10 +734,10 @@ frame .f_find -borderwidth 1 -relief sunken
             -postcommand {.cb_replace configure -values $MyVars::hreplace}
         button .b_replace -text "Replace" -width 7 \
             -underline 0 -takefocus 0 \
-            -command {Replace .text $search $replace $selector}
+            -command {Replace .text $search $replace tag_search}
         button .b_replaceall -text "All" -width 7 \
             -underline 0 -takefocus 0 \
-            -command {ReplaceAll .text $search $replace $selector}
+            -command {ReplaceAll .text $search $replace tag_search}
 
         grid .cb_replace    -in .lf_replace -row 0 -column 0
         grid .b_replace     -in .lf_replace -row 0 -column 1
@@ -771,7 +796,7 @@ bind . <Control-Shift-Z>    {.m.edit    invoke "Redo"}
 bind . <Control-j>          {.m.edit    invoke "Fold Selection"}
 bind . <Control-J>          {.m.edit    invoke "Unfold All"}
 bind . <Control-f>          {.m.search  invoke "Search..."}
-bind . <Control-l>          {.m.search  invoke "Clear Selection"}
+bind . <Control-l>          {.m.search  invoke "Clear Highlight"}
 bind . <F9>                 {.m.marks   invoke "Show Marks..."}
 bind . <Control-m>          {.m.marks   invoke "Mark/Unmark"}
 bind . <Control-M>          {.m.marks   invoke "Clear All Marks"}
@@ -789,9 +814,9 @@ bind .l_marks   <KP_Enter>                  [list GotoMark .text]
 bind .l_marks   <Double-ButtonRelease-1>    [list GotoMark .text]
 bind .l_marks   <Delete>                    [list DeleteMark ""]
 
+bind .cb_search     <Escape>    {.m.search invoke "Search..."}
 bind .cb_search     <Return>    {.b_findnext invoke}
 bind .cb_search     <KP_Enter>  {.b_findnext invoke}
-bind .cb_search     <Escape>    {.m.search invoke "Search..."}
 bind .cb_search     <3>         {focus %W; tk_popup .cb_popup %X %Y}
 bind .cb_replace    <3>         {focus %W; tk_popup .cb_popup %X %Y}
 
@@ -804,7 +829,7 @@ SetTabStop .text $tabstop
 focus .text
 
 wm title    . "tEdit"
-wm minsize  . 675 425
+wm minsize  . 750 450
 wm protocol . WM_DELETE_WINDOW {.m.file invoke "Exit"}
 
 ################################################################################
