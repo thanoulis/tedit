@@ -233,7 +233,7 @@ proc foldText {w tag} {
     set fold_line [$w get $from_line.0 $from_line.end]
     set fold_text "\u25b6\u25b6 $fold_lines lines: $fold_line"
     button $fold -text "$fold_text" -padx 0 -pady 0 -relief flat \
-        -command [list unFoldText $w $fold]
+        -cursor "left_ptr" -command [list unFoldText $w $fold]
     lappend myVars::folds $fold
     $w tag add $fold $from_line.0 $to_line.end
     $w tag configure $fold -elide "true"
@@ -408,7 +408,7 @@ proc toggleSafeMode {} {
 
 proc setTabStop {w tabstop} {
     $w configure -tabs "[expr {$tabstop * [font measure [$w cget -font] 0]}] left"
-    .m.options entryconfigure 10 -label "Tabs \u21D2 $tabstop Spaces"
+    .m.options entryconfigure 11 -label "Tabs \u21D2 $tabstop Spaces"
 }
 
 proc tabsToSpaces {w} {
@@ -690,7 +690,7 @@ menu .cb_popup -tearoff 0
 #
 labelframe .lf_recent -borderwidth 1 -relief flat \
     -text "Recently Opened Files:"
-    listbox .l_recent -relief flat -borderwidth 1 -height 5 \
+    listbox .l_recent -relief flat -height 5 -highlightthickness 0 \
         -takefocus 0 -selectmode browse \
         -yscrollcommand {.ysb_recent set}
     ttk::scrollbar .ysb_recent -orient vertical -command {.l_recent yview}
@@ -703,21 +703,22 @@ labelframe .lf_recent -borderwidth 1 -relief flat \
 
 frame .f_text
     labelframe .lf_marks -borderwidth 1 -relief flat -text "Marks:"
-    listbox .l_marks -listvariable myVars::marks -takefocus 0 -width 10
+    listbox .l_marks -listvariable myVars::marks -width 10 \
+        -takefocus 0 -highlightthickness 0
 
     grid .l_marks   -in .lf_marks   -row 0 -column 0 -sticky ns
 
     grid rowconfigure .lf_marks .l_marks -weight 1
 
-    text .text -setgrid false -relief flat -borderwidth 0 -takefocus 0 \
+    text .text -setgrid false -relief flat -highlightthickness 0 -takefocus 0 \
         -xscrollcommand {.xsb_text set} \
         -yscrollcommand {.ysb_text set} \
         -wrap $word_wrap -undo true -autoseparators true \
         -tabstyle wordprocessor \
         -blockcursor false -insertunfocussed hollow
     # search tags management
-    .text tag configure tag_search -background black -foreground yellow
-    .text tag configure tag_search_all -background yellow -foreground black
+    .text tag configure tag_search      -background black -foreground yellow
+    .text tag configure tag_search_all  -background yellow -foreground black
     .text tag raise tag_search
     .text tag lower tag_search_all tag_search
 
