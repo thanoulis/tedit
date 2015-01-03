@@ -110,12 +110,12 @@ proc askSave {} {
             -type yesnocancel -default yes \
             -message "File has changed!" -detail "Save changes?"]
         switch -- $answer {
-            yes {
+            "yes" {
                 saveFile $myVars::filename
                 if {$myVars::modified ne ""} {return "cancel"}
             }
-            no      {}
-            cancel  {return "cancel"}
+            "no"        {}
+            "cancel"    {return "cancel"}
         }
     }
 }
@@ -257,7 +257,8 @@ proc unFoldText {w which} {
     }
 }
 
-proc searchText {w what which tag} {
+proc searchText {w what tag} {
+    .cb_search configure -style white.TCombobox
     if {$what eq ""} {
         errorMessage "Search: nothing to search"
         return
@@ -265,38 +266,43 @@ proc searchText {w what which tag} {
     if {$what ni $myVars::hsearch} {
         lappend myVars::hsearch $what
     }
-    .cb_search configure -style white.TCombobox
     clearHighlight $w $tag
-    switch -- $which {
-        "all" {
+    switch -- $tag {
+        "tag_search_all" {
             set position "1.0"
+            set begin_time [clock seconds]
             while {1} {
                 set command [list $w search $::reg_exp -count n -- $what $position end]
                 if {$::match_case eq "false"} {
                     set command [linsert $command 2 -nocase]
                 }
                 if [catch {set position [{*}$command]} msg] {
-                    .cb_search configure -style .red.TCombobox
+                    .cb_search configure -style red.TCombobox
                     errorMessage "Search: [lindex [split $msg :] 1]"
                     break
                 }
                 if {$position eq ""} {break}
                 $w tag add $tag $position $position+${n}c
                 set position [$w index $position+${n}c]
+                set end_time [clock seconds]
+                if [expr {$end_time - $begin_time} > 10] {
+                    errorMessage "Find All: taking too long, terminated"
+                    break
+                }
             }
         }
-        "one" {
+        "tag_search" {
             set command [list $w search $::reg_exp -count n -- $what insert+2c]
             if {$::match_case eq "false"} {
                 set command [linsert $command 2 -nocase]
             }
             if [catch {set position [{*}$command]} msg] {
-                .cb_search configure -style .red.TCombobox
+                .cb_search configure -style red.TCombobox
                 errorMessage "Search: [lindex [split $msg :] 1]"
                 return
             }
             if {$position eq ""} {
-                .cb_search configure -style .red.TCombobox
+                .cb_search configure -style red.TCombobox
                 return
             }
             $w tag add $tag $position $position+${n}c
@@ -312,7 +318,7 @@ proc replaceText {w what with tag} {
     }
     if {[$w tag ranges $tag] ne ""} {
         $w replace {*}[$w tag ranges $tag] $with
-        searchText $w $what "one" $tag
+        searchText $w $what $tag
         return 1
     } else {
         errorMessage "Replace: nothing to replace"
@@ -323,7 +329,15 @@ proc replaceText {w what with tag} {
 
 proc replaceAll {w what with tag} {
     set all 1
-    while {$all} {set all [replaceText $w $what $with $tag]}
+    set begin_time [clock seconds]
+    while {$all} {
+        set all [replaceText $w $what $with $tag]
+        set end_time [clock seconds]
+        if [expr {$end_time - $begin_time} > 10] {
+            errorMessage "Replace All: taking too long, terminated"
+            break
+        }
+    }
 }
 
 proc clearHighlight {w tags} {
@@ -363,7 +377,7 @@ proc deleteMark {which} {
             }
             .l_marks delete 0 end
         }
-        "" {
+        "active" {
             .text tag delete [.l_marks get active]
             .l_marks delete active
         }
@@ -391,18 +405,15 @@ proc toggleView {w show} {
 proc toggleSafeMode {} {
     set myVars::show_mode [expr {$::read_only eq "true" ? "\[Safe Mode\]" : ""}]
     set state [expr {$::read_only eq "true" ? "disabled" : "normal"}]
-    foreach widget [list .text .ck_replace .cb_replace .b_replace .b_replaceall] {
+    if {$::read_only eq "true" && $::view_replace eq "true"} {
+        .ck_replace invoke
+    }
+    foreach widget [list .text .ck_replace ] {
         $widget configure -state $state
     }
-    .m.file entryconfigure "Save"   -state $state
-    .m.edit entryconfigure "Undo"   -state $state
-    .m.edit entryconfigure "Redo"   -state $state
-    .m.edit entryconfigure "Cut"    -state $state
-    .m.edit entryconfigure "Paste"  -state $state
-    if {$state eq "disabled"} {
-        bind .cb_replace <3> {}
-    } else {
-        bind .cb_replace <3> {focus %W; tk_popup .cb_popup %X %Y}
+    .m.file entryconfigure "Save" -state $state
+    foreach menu_entry [list "Undo" "Redo" "Cut" "Paste"] {
+        .m.edit entryconfigure $menu_entry -state $state
     }
 }
 
@@ -435,31 +446,35 @@ proc setFont {w tabstop} {
     $w configure -tabs "[expr {$tabstop * [font measure [$w cget -font] 0]}] left"
 }
 
-proc setColor {w argument} {
-    if {$argument eq "insertbackground"} {
-        set color [tk_chooseColor -title "Set cursor color" \
-            -initialcolor [$w cget -$argument]]
-        if {$color eq ""} {return}
-        $w configure -$argument $color
-    } elseif {$argument eq "tag_search"} {
-        set color [tk_chooseColor -title "Set search color" \
-            -initialcolor [$w tag cget tag_search_all -background]]
-        if {$color eq ""} {return}
-        $w tag configure tag_search \
-            -foreground $color -background [$w cget -foreground]
-        $w tag configure tag_search_all \
-            -foreground [$w cget -foreground] -background $color
-    } else {
-        set color [tk_chooseColor -title "Set $argument color" \
-            -initialcolor [$w cget -$argument]]
-        if {$color eq ""} {return}
-        foreach widget [list $w .l_recent .l_marks] {
-            $widget configure -$argument $color
-            $widget configure -selectbackground [$widget cget -foreground]
-            $widget configure -selectforeground [$widget cget -background]
+proc setColor {w where} {
+    switch -- $where {
+        "cursor" {
+            set color [tk_chooseColor -title "Set $where color" \
+                -initialcolor [$w cget -insertbackground]]
+            if {$color eq ""} {return}
+            $w configure -insertbackground $color
         }
-        $w tag configure tag_search     -background [$w cget -foreground]
-        $w tag configure tag_search_all -foreground [$w cget -foreground]
+        "search" {
+            set color [tk_chooseColor -title "Set $where color" \
+                -initialcolor [$w tag cget tag_search_all -background]]
+            if {$color eq ""} {return}
+            $w tag configure tag_search \
+                -foreground $color -background [$w cget -foreground]
+            $w tag configure tag_search_all \
+                -foreground [$w cget -foreground] -background $color
+        }
+        default {
+            set color [tk_chooseColor -title "Set $where color" \
+                -initialcolor [$w cget -$where]]
+            if {$color eq ""} {return}
+            foreach widget [list $w .l_recent .l_marks] {
+                $widget configure -$where $color
+                $widget configure -selectbackground [$widget cget -foreground]
+                $widget configure -selectforeground [$widget cget -background]
+            }
+            $w tag configure tag_search     -background [$w cget -foreground]
+            $w tag configure tag_search_all -foreground [$w cget -foreground]
+        }
     }
 }
 
@@ -638,9 +653,9 @@ menu .m -tearoff 0
             -command {.text configure -blockcursor $blockcursor}
         .m.options add separator
         .m.options add command -label "Cursor Color..." -underline 0 \
-            -command {setColor .text "insertbackground"}
+            -command {setColor .text "cursor"}
         .m.options add command -label "Search Color..." -underline 3 \
-            -command {setColor .text "tag_search"}
+            -command {setColor .text "search"}
         .m.options add command -label "Foreground Color..." -underline 0 \
             -command {setColor .text "foreground"}
         .m.options add command -label "Background Color..." -underline 0 \
@@ -717,8 +732,8 @@ frame .f_text
         -tabstyle wordprocessor \
         -blockcursor false -insertunfocussed hollow
     # search tags management
-    .text tag configure tag_search      -background black -foreground yellow
-    .text tag configure tag_search_all  -background yellow -foreground black
+    .text tag configure tag_search     -background black  -foreground yellow
+    .text tag configure tag_search_all -background yellow -foreground black
     .text tag raise tag_search
     .text tag lower tag_search_all tag_search
 
@@ -741,10 +756,10 @@ frame .f_find -borderwidth 1 -relief sunken
             -postcommand {.cb_search configure -values $myVars::hsearch}
         button .b_findnext -text "Find Next" -width 7 \
             -underline 5 -takefocus 0 \
-            -command {searchText .text $search "one" tag_search}
+            -command {searchText .text $search tag_search}
         button .b_findall -text "Find All" -width 7 \
             -underline 0 -takefocus 0 \
-            -command {searchText .text $search "all" tag_search_all}
+            -command {searchText .text $search tag_search_all}
         checkbutton .ck_matchcase -text "Match Case" \
             -underline 0 -takefocus 0 \
             -variable match_case -onvalue "true" -offvalue "false"
@@ -756,7 +771,7 @@ frame .f_find -borderwidth 1 -relief sunken
             -variable view_replace -onvalue "true" -offvalue "false" \
             -command {toggleView .lf_replace $view_replace}
 
-        grid .cb_search     -in .lf_search -row 0 -column 0 -sticky w
+        grid .cb_search     -in .lf_search -row 0 -column 0
         grid .b_findnext    -in .lf_search -row 0 -column 1
         grid .b_findall     -in .lf_search -row 0 -column 2
         grid .ck_matchcase  -in .lf_search -row 0 -column 3
@@ -851,7 +866,7 @@ bind .l_recent  <Double-ButtonRelease-1>    {recentOpen}
 bind .l_marks   <Return>                    [list gotoMark .text]
 bind .l_marks   <KP_Enter>                  [list gotoMark .text]
 bind .l_marks   <Double-ButtonRelease-1>    [list gotoMark .text]
-bind .l_marks   <Delete>                    [list deleteMark ""]
+bind .l_marks   <Delete>                    [list deleteMark "active"]
 
 bind .cb_search     <3>         {focus %W; tk_popup .cb_popup %X %Y}
 bind .cb_search     <Escape>    {.m.search invoke "Search..."}
