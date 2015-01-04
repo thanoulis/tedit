@@ -1,4 +1,4 @@
-#!/usr/bin/env tclsh
+#!/usr/bin/env wish
 
 package require Tk
 
@@ -143,13 +143,13 @@ proc openFileDialog {} {
 }
 
 proc openFile {filename} {
-    if [catch {set filehandler [open $filename r]} msg] {
+    if [catch {set fh [open $filename r]} msg] {
         errorMessage "Open $filename: [lindex [split $msg :] 1]"
         return
     }
     if {$::read_only eq "true"} {.m.view invoke "Read Only"}
-    .text replace 1.0 end [read $filehandler]
-    close $filehandler
+    .text replace 1.0 end [read -nonewline $fh]
+    close $fh
     .text mark set insert 1.0
     if {[file writable $filename] == 0 && $::read_only eq "false"} {
         .m.view invoke "Read Only"
@@ -176,12 +176,12 @@ proc saveFile {filename} {
         saveFileDialog
         return
     }
-    if [catch {set filehandler [open $filename w]} msg] {
+    if [catch {set fh [open $filename w]} msg] {
         errorMessage "Save $filename: [lindex [split $msg :] 1]"
         return
     }
-    puts -nonewline $filehandler [.text get 1.0 end-1c]
-    close $filehandler
+    puts -nonewline $fh [.text get 1.0 end]
+    close $fh
     updateGUI $filename
     clearModified .text
 }
@@ -205,7 +205,6 @@ proc recentAdd {filename} {
 proc recentOpen {} {
     if {[askSave] eq "cancel"} {return}
     set filename [.l_recent get active]
-    if {$filename eq $myVars::filename} {return}
     openFile $filename
 }
 
@@ -233,11 +232,12 @@ proc foldText {w tag} {
     set fold_line [$w get $from_line.0 $from_line.end]
     set fold_text "\u25b6\u25b6 $fold_lines lines: $fold_line"
     button $fold -text "$fold_text" -padx 0 -pady 0 -relief flat \
-        -cursor "left_ptr" -command [list unFoldText $w $fold]
+        -takefocus 0 -cursor "left_ptr" -command [list unFoldText $w $fold]
     lappend myVars::folds $fold
     $w tag add $fold $from_line.0 $to_line.end
     $w tag configure $fold -elide "true"
     $w window create $from_line.0 -window $fold
+    $w mark set insert $to_line.0+1line
     $w tag remove $tag $from $to
 }
 
@@ -285,7 +285,7 @@ proc searchText {w what tag} {
                 $w tag add $tag $position $position+${n}c
                 set position [$w index $position+${n}c]
                 set end_time [clock seconds]
-                if [expr {$end_time - $begin_time} > 10] {
+                if [expr {$end_time - $begin_time} > 5] {
                     errorMessage "Find All: taking too long, terminated"
                     break
                 }
@@ -333,7 +333,7 @@ proc replaceAll {w what with tag} {
     while {$all} {
         set all [replaceText $w $what $with $tag]
         set end_time [clock seconds]
-        if [expr {$end_time - $begin_time} > 10] {
+        if [expr {$end_time - $begin_time} > 5] {
             errorMessage "Replace All: taking too long, terminated"
             break
         }
@@ -429,17 +429,16 @@ proc tabsToSpaces {w} {
         -detail "It cannot be undone. Are you sure you want to continue?"]
     if {$answer eq "no"} {return}
     set tabstop [string repeat " " $::tabstop]
-    set text_tabs [$w get 1.0 end-1c]
+    set text_tabs [$w get 1.0 end]
     regsub -all {\t} $text_tabs $tabstop text_spaces
     $w replace 1.0 end $text_spaces
 }
 
+proc selectFont {w font} {
+    $w configure -font [font actual $font]
+}
+
 proc setFont {w tabstop} {
-
-    proc selectFont {w font} {
-        $w configure -font [font actual $font]
-    }
-
     tk fontchooser configure -title "Set Font" -parent .
     tk fontchooser [expr {[tk fontchooser configure -visible] ? "hide" : "show"}]
     tk fontchooser configure -font [$w cget -font] -command [list selectFont $w]
@@ -550,11 +549,11 @@ menu .m -tearoff 0
         .m.file add command -label "New" -underline 0 \
             -command {newFile}
         .m.file add command -label "Open..." -underline 0 \
-            -accelerator "Control-O" -command {openFileDialog}
+            -accelerator "Control+O" -command {openFileDialog}
         .m.file add command -label "Save" -underline 0 \
-            -accelerator "Control-S" -command {saveFile $myVars::filename}
+            -accelerator "Control+S" -command {saveFile $myVars::filename}
         .m.file add command -label "Save As..." -underline 5 \
-            -accelerator "Shift-Control-S" -command {saveFileDialog}
+            -accelerator "Control+Shift+S" -command {saveFileDialog}
         .m.file add separator
         .m.file add checkbutton -label "Recent Files..." -underline 0 \
             -accelerator "F2" -state "disabled" \
@@ -562,33 +561,35 @@ menu .m -tearoff 0
             -command {toggleView .lf_recent $view_recent}
         .m.file add separator
         .m.file add command -label "Exit" -underline 1 \
-            -accelerator "Control-Q" -underline 1 -command {exitCommand}
+            -accelerator "Control+Q" -underline 1 -command {exitCommand}
     menu .m.edit -tearoff 0
     .m add cascade -label "Edit" -menu .m.edit -underline 0
         .m.edit add command -label "Undo" -underline 0 \
-            -accelerator "Control-Z" -command {undoCommand}
+            -accelerator "Control+Z" -command {undoCommand}
         .m.edit add command -label "Redo" -underline 0 \
-            -accelerator "Control-Shift-Z" -command {redoCommand}
+            -accelerator "Control+Shift+Z" -command {redoCommand}
         .m.edit add separator
         .m.edit add command -label "Cut" -underline 2 \
-            -accelerator "Control-X" -command [list tk_textCut .text]
+            -accelerator "Control+X" -command [list tk_textCut .text]
         .m.edit add command -label "Copy" -underline 0 \
-            -accelerator "Control-C" -command [list tk_textCopy .text]
+            -accelerator "Control+C" -command [list tk_textCopy .text]
         .m.edit add command -label "Paste" -underline 0 \
-            -accelerator "Control-V" -command [list tk_textPaste .text]
+            -accelerator "Control+V" -command [list tk_textPaste .text]
         .m.edit add separator
         .m.edit add command -label "Fold Selection" -underline 0 \
-            -accelerator "Control-J" -command [list foldText .text sel]
+            -accelerator "Control+J" -command [list foldText .text sel]
         .m.edit add command -label "Unfold All" -underline 7 \
-            -accelerator "Control-Shift-J" -command [list unFoldText .text "all"]
+            -accelerator "Control+Shift+J" -command [list unFoldText .text "all"]
     menu .m.search -tearoff 0
     .m add cascade -label "Search" -menu .m.search -underline 0
         .m.search add checkbutton -label "Search..." -underline 0 \
-            -accelerator "Control-F" \
+            -accelerator "Control+F" \
             -variable view_search -onvalue "true" -offvalue "false" \
             -command {toggleView .f_find $view_search}
+        .m.search add command -label "Find Next" -underline 5 \
+            -accelerator "F3" -command {.b_findnext invoke}
         .m.search add command -label "Clear Highlight" -underline 0 \
-            -accelerator "Control-L" \
+            -accelerator "Control+L" \
             -command [list clearHighlight .text {tag_search tag_search_all}]
     menu .m.marks -tearoff 0
     .m add cascade -label "Marks" -menu .m.marks -underline 0
@@ -597,13 +598,13 @@ menu .m -tearoff 0
             -variable view_marks -onvalue "true" -offvalue "false" \
             -command {toggleView .lf_marks $view_marks}
         .m.marks add command -label "Mark/Unmark" -underline 0 \
-            -accelerator "Control-M" -command [list lineMark .text]
+            -accelerator "Control+M" -command [list lineMark .text]
         .m.marks add command -label "Clear All Marks" -underline 6 \
-            -accelerator "Control-Shift-M" -command [list deleteMark "all"]
+            -accelerator "Control+Shift+M" -command [list deleteMark "all"]
     menu .m.view -tearoff 0
     .m add cascade -label "View" -menu .m.view -underline 0
         .m.view add checkbutton -label "Read Only" -underline 0 \
-            -accelerator "Control-R" \
+            -accelerator "Control+R" \
             -variable read_only -onvalue "true" -offvalue "false" \
             -command {toggleSafeMode}
         .m.view add separator
@@ -642,7 +643,7 @@ menu .m -tearoff 0
     menu .m.options -tearoff 0
     .m add cascade -label "Options" -menu .m.options -underline 0
         .m.options add checkbutton -label "Word Wrap" -underline 5 \
-            -accelerator "Control-W" \
+            -accelerator "Control+W" \
             -variable word_wrap -onvalue "word" -offvalue "none" \
             -command {.text configure -wrap $word_wrap}
         .m.options add separator
@@ -850,6 +851,7 @@ bind . <Control-Shift-Z>    {.m.edit    invoke "Redo"}
 bind . <Control-j>          {.m.edit    invoke "Fold Selection"}
 bind . <Control-J>          {.m.edit    invoke "Unfold All"}
 bind . <Control-f>          {.m.search  invoke "Search..."}
+bind . <F3>                 {.m.search  invoke "Find Next"}
 bind . <Control-l>          {.m.search  invoke "Clear Highlight"}
 bind . <F9>                 {.m.marks   invoke "Show Marks..."}
 bind . <Control-m>          {.m.marks   invoke "Mark/Unmark"}
