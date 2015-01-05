@@ -8,7 +8,6 @@ namespace eval myVars {
     variable show_mode  ""
     variable modified   ""
     variable marks      [list]
-    variable folds_id   0
     variable folds      [list]
     variable hsearch    [list]
     variable hreplace   [list]
@@ -72,7 +71,7 @@ proc scratchPad {w tabs} {
             bind $w <3>     "focus %W; tk_popup $w.menu %X %Y"
             bind $w <F8>    "$w.menu invoke 4"
 
-            .m.view entryconfigure "ScratchPad Tabs" -state disable
+            .m.view entryconfigure "ScratchPad Tabs" -state disabled
         }
     }
 }
@@ -222,23 +221,35 @@ proc selectAll {w} {
 proc foldLines {w tag} {
     lassign [$w tag ranges $tag] from to
     if {$from eq ""} {
-        errorMessage "select lines to fold"    
+        errorMessage "select lines to fold"
         return
     }
-    set fold $w.fold[incr myVars::folds_id]
     scan $from %d from_line
     scan $to %d to_line
+    # check if a fold exists in current selection
+    foreach old_fold $myVars::folds {
+        lassign [$w tag ranges $old_fold] old_from old_to
+        scan $old_from %d old_from_line
+        scan $old_to %d old_to_line
+
+        if {$from_line <= $old_from_line && $to_line >= $old_to_line} {
+            $old_fold invoke
+        }
+    }
+    # get first line text to show in button
     set fold_lines [$w count -lines $from $to+1line]
     set fold_line [$w get $from_line.0 $from_line.end]
     set fold_text "\u25b6\u25b6 $fold_lines lines: $fold_line"
+    set fold "$w.$from_line-$to_line"
     button $fold -text "$fold_text" -padx 0 -pady 0 -relief flat \
         -takefocus 0 -cursor "left_ptr" -command [list unFoldLines $w $fold]
-    lappend myVars::folds $fold
-    $w tag add $fold $from_line.0 $to_line.end
     $w tag configure $fold -elide "true"
+    $w tag add $fold $from_line.0 $to_line.end
     $w window create $from_line.0 -window $fold
     $w mark set insert $to_line.0+1line
     $w tag remove $tag $from $to
+    lappend myVars::folds $fold
+    .m.edit entryconfigure "Unfold All" -state normal
 }
 
 proc unFoldLines {w which} {
@@ -249,11 +260,16 @@ proc unFoldLines {w which} {
                 $w tag configure $fold -elide "false"
                 destroy $fold
             }
+            set myVars::folds [list]
         }
         default {
             $w tag configure $which -elide "false"
             destroy $which
+            set myVars::folds [lsearch -inline -all -not -exact $myVars::folds $which]
         }
+    }
+    if {[llength $myVars::folds] == 0} {
+        .m.edit entryconfigure "Unfold All" -state disabled
     }
 }
 
@@ -352,11 +368,12 @@ proc markLine {w} {
     set linenum [$w count -lines 1.0 insert+1line]
     set mark "Line $linenum"
     if {$mark ni $myVars::marks} {
-        lappend myVars::marks $mark
         $w mark set $mark $linenum.0
         $w tag configure $mark -background cyan
-        $w tag add $mark "$linenum.0" "$linenum.end"
         $w tag raise $mark sel
+        $w tag add $mark "$linenum.0" "$linenum.end"
+        lappend myVars::marks $mark
+        .m.marks entryconfigure "Clear All Marks" -state normal
     } else {
         markDelete $w $mark
     }
@@ -368,7 +385,7 @@ proc markSee {w} {
         errorMessage "select a mark"
         return
     }
-    $w mark set insert $mark 
+    $w mark set insert $mark
     $w see $mark
 }
 
@@ -392,6 +409,9 @@ proc markDelete {w which} {
             $w tag delete $which
             .l_marks delete [lsearch $myVars::marks $which]
         }
+    }
+    if {[llength $myVars::marks] == 0} {
+        .m.marks entryconfigure "Clear All Marks" -state disabled
     }
 }
 
@@ -451,16 +471,16 @@ proc setFont {w tabstop} {
     $w configure -tabs "[expr {$tabstop * [font measure [$w cget -font] 0]}] left"
 }
 
-proc setColor {w where} {
-    switch -- $where {
+proc setColor {w which} {
+    switch -- $which {
         "cursor" {
-            set color [tk_chooseColor -title "Set $where color" \
+            set color [tk_chooseColor -title "Set $which color" \
                 -initialcolor [$w cget -insertbackground]]
             if {$color eq ""} {return}
             $w configure -insertbackground $color
         }
         "search" {
-            set color [tk_chooseColor -title "Set $where color" \
+            set color [tk_chooseColor -title "Set $which color" \
                 -initialcolor [$w tag cget tag_search_all -background]]
             if {$color eq ""} {return}
             $w tag configure tag_search \
@@ -469,11 +489,11 @@ proc setColor {w where} {
                 -foreground [$w cget -foreground] -background $color
         }
         default {
-            set color [tk_chooseColor -title "Set $where color" \
-                -initialcolor [$w cget -$where]]
+            set color [tk_chooseColor -title "Set $which color" \
+                -initialcolor [$w cget -$which]]
             if {$color eq ""} {return}
             foreach widget [list $w .l_recent .l_marks] {
-                $widget configure -$where $color
+                $widget configure -$which $color
                 $widget configure -selectbackground [$widget cget -foreground]
                 $widget configure -selectforeground [$widget cget -background]
             }
@@ -588,7 +608,8 @@ menu .m -tearoff 0
         .m.edit add command -label "Fold Lines" -underline 0 \
             -accelerator "Control+J" -command [list foldLines .text sel]
         .m.edit add command -label "Unfold All" -underline 1 \
-            -accelerator "Control+Shift+J" -command [list unFoldLines .text "all"]
+            -accelerator "Control+Shift+J" -state disabled \
+            -command [list unFoldLines .text "all"]
     menu .m.search -tearoff 0
     .m add cascade -label "Search" -menu .m.search -underline 0
         .m.search add checkbutton -label "Search..." -underline 0 \
@@ -609,7 +630,8 @@ menu .m -tearoff 0
         .m.marks add command -label "Mark/Unmark" -underline 0 \
             -accelerator "Control+M" -command [list markLine .text]
         .m.marks add command -label "Clear All Marks" -underline 6 \
-            -accelerator "Control+Shift+M" -command [list markDelete .text "all"]
+            -accelerator "Control+Shift+M" -state disabled \
+            -command [list markDelete .text "all"]
     menu .m.view -tearoff 0
     .m add cascade -label "View" -menu .m.view -underline 0
         .m.view add checkbutton -label "Read Only" -underline 0 \
