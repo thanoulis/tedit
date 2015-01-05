@@ -937,10 +937,13 @@ wm protocol . WM_DELETE_WINDOW {.m.file invoke "Exit"}
 #
 #
 if {$argc > 0} {
-    set myVars::filename [lindex $argv 0]
-    if {[file type $myVars::filename] ne "file" && [file exists $myVars::filename]} {
-        puts stderr "error: $myVars::filename is a [file type $myVars::filename]"
-        exit
+    set myVars::filename [lindex $argv end]
+    if [file exists $myVars::filename] {
+        if {[file type $myVars::filename] ne "file"} {
+            puts stderr "error: $myVars::filename is a [file type $myVars::filename]"
+            exit
+        } else {
+            openFile $myVars::filename
+        }
     }
-    openFile $myVars::filename
 }
