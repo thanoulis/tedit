@@ -125,7 +125,7 @@ proc newFile {} {
     if {$::read_only eq "true"} {.m.view invoke "Read Only"}
     .text delete 1.0 end
     updateGUI ""
-    deleteMark "all"
+    markDelete .text "all"
     clearModified .text
 }
 
@@ -144,18 +144,19 @@ proc openFileDialog {} {
 
 proc openFile {filename} {
     if [catch {set fh [open $filename r]} msg] {
-        errorMessage "Open $filename: [lindex [split $msg :] 1]"
+        errorMessage [lindex [split $msg :] 1]
         return
     }
     if {$::read_only eq "true"} {.m.view invoke "Read Only"}
     .text replace 1.0 end [read -nonewline $fh]
     close $fh
     .text mark set insert 1.0
+    .text see 1.0
     if {[file writable $filename] == 0 && $::read_only eq "false"} {
         .m.view invoke "Read Only"
     }
     updateGUI $filename
-    deleteMark "all"
+    markDelete .text "all"
     clearModified .text
 }
 
@@ -177,7 +178,7 @@ proc saveFile {filename} {
         return
     }
     if [catch {set fh [open $filename w]} msg] {
-        errorMessage "Save $filename: [lindex [split $msg :] 1]"
+        errorMessage [lindex [split $msg :] 1]
         return
     }
     puts -nonewline $fh [.text get 1.0 end]
@@ -208,23 +209,22 @@ proc recentOpen {} {
     openFile $filename
 }
 
-proc undoCommand {} {
-    if [catch {.text edit undo} msg] {
-        errorMessage "Undo: $msg"
-        return
+proc undoRedo {w command} {
+    if [catch {$w edit $command} msg] {
+        errorMessage $msg
     }
 }
 
-proc redoCommand {} {
-    if [catch {.text edit redo} msg] {
-        errorMessage "Redo: $msg"
-        return
-    }
+proc selectAll {w} {
+    $w tag add sel 1.0 end
 }
 
-proc foldText {w tag} {
-    if {[$w tag ranges $tag] eq ""} {return}
+proc foldLines {w tag} {
     lassign [$w tag ranges $tag] from to
+    if {$from eq ""} {
+        errorMessage "select lines to fold"    
+        return
+    }
     set fold $w.fold[incr myVars::folds_id]
     scan $from %d from_line
     scan $to %d to_line
@@ -232,7 +232,7 @@ proc foldText {w tag} {
     set fold_line [$w get $from_line.0 $from_line.end]
     set fold_text "\u25b6\u25b6 $fold_lines lines: $fold_line"
     button $fold -text "$fold_text" -padx 0 -pady 0 -relief flat \
-        -takefocus 0 -cursor "left_ptr" -command [list unFoldText $w $fold]
+        -takefocus 0 -cursor "left_ptr" -command [list unFoldLines $w $fold]
     lappend myVars::folds $fold
     $w tag add $fold $from_line.0 $to_line.end
     $w tag configure $fold -elide "true"
@@ -241,7 +241,7 @@ proc foldText {w tag} {
     $w tag remove $tag $from $to
 }
 
-proc unFoldText {w which} {
+proc unFoldLines {w which} {
     switch -- $which {
         ""  {return}
         "all" {
@@ -260,7 +260,7 @@ proc unFoldText {w which} {
 proc searchText {w what tag} {
     .cb_search configure -style white.TCombobox
     if {$what eq ""} {
-        errorMessage "Search: nothing to search"
+        errorMessage "nothing to search for"
         return
     }
     if {$what ni $myVars::hsearch} {
@@ -278,7 +278,7 @@ proc searchText {w what tag} {
                 }
                 if [catch {set position [{*}$command]} msg] {
                     .cb_search configure -style red.TCombobox
-                    errorMessage "Search: [lindex [split $msg :] 1]"
+                    errorMessage [lindex [split $msg :] 1]
                     break
                 }
                 if {$position eq ""} {break}
@@ -286,7 +286,7 @@ proc searchText {w what tag} {
                 set position [$w index $position+${n}c]
                 set end_time [clock seconds]
                 if [expr {$end_time - $begin_time} > 5] {
-                    errorMessage "Find All: taking too long, terminated"
+                    errorMessage "taking too long, terminated"
                     break
                 }
             }
@@ -298,7 +298,7 @@ proc searchText {w what tag} {
             }
             if [catch {set position [{*}$command]} msg] {
                 .cb_search configure -style red.TCombobox
-                errorMessage "Search: [lindex [split $msg :] 1]"
+                errorMessage [lindex [split $msg :] 1]
                 return
             }
             if {$position eq ""} {
@@ -321,7 +321,7 @@ proc replaceText {w what with tag} {
         searchText $w $what $tag
         return 1
     } else {
-        errorMessage "Replace: nothing to replace"
+        errorMessage "nothing to replace"
         .b_findnext flash
         return 0
     }
@@ -334,7 +334,7 @@ proc replaceAll {w what with tag} {
         set all [replaceText $w $what $with $tag]
         set end_time [clock seconds]
         if [expr {$end_time - $begin_time} > 5] {
-            errorMessage "Replace All: taking too long, terminated"
+            errorMessage "taking too long, terminated"
             break
         }
     }
@@ -348,41 +348,48 @@ proc clearHighlight {w tags} {
     }
 }
 
-proc lineMark {w} {
+proc markLine {w} {
     set linenum [$w count -lines 1.0 insert+1line]
     set mark "Line $linenum"
     if {$mark ni $myVars::marks} {
         lappend myVars::marks $mark
+        $w mark set $mark $linenum.0
         $w tag configure $mark -background cyan
         $w tag add $mark "$linenum.0" "$linenum.end"
         $w tag raise $mark sel
     } else {
-        deleteMark $mark
+        markDelete $w $mark
     }
 }
 
-proc gotoMark {w} {
-    if [catch {
-        scan [.l_marks get active] %s%d smth mark
-        $w mark set insert $mark.0
-        $w see $mark.0
-    }] {return}
+proc markSee {w} {
+    set mark [.l_marks get active]
+    if {$mark eq ""} {
+        errorMessage "select a mark"
+        return
+    }
+    $w mark set insert $mark 
+    $w see $mark
 }
 
-proc deleteMark {which} {
+proc markDelete {w which} {
     switch -- $which {
         "all" {
             foreach mark $myVars::marks {
-                .text tag delete $mark
+                $w mark unset $mark
+                $w tag delete $mark
             }
             .l_marks delete 0 end
         }
         "active" {
-            .text tag delete [.l_marks get active]
+            set mark [.l_marks get active]
+            $w mark unset $mark
+            $w tag delete $mark
             .l_marks delete active
         }
         default {
-            .text tag delete $which
+            $w mark unset $which
+            $w tag delete $which
             .l_marks delete [lsearch $myVars::marks $which]
         }
     }
@@ -419,16 +426,15 @@ proc toggleSafeMode {} {
 
 proc setTabStop {w tabstop} {
     $w configure -tabs "[expr {$tabstop * [font measure [$w cget -font] 0]}] left"
-    .m.options entryconfigure 11 -label "Tabs \u21D2 $tabstop Spaces"
 }
 
-proc tabsToSpaces {w} {
+proc tabsToSpaces {w tabstop} {
     set answer [tk_messageBox -title "Convert Tabs into Spaces?" \
         -icon warning -type yesno -default no \
-        -message "This will convert all Tab characters into $::tabstop Spaces!" \
+        -message "This will convert all Tab characters into $tabstop Spaces!" \
         -detail "It cannot be undone. Are you sure you want to continue?"]
     if {$answer eq "no"} {return}
-    set tabstop [string repeat " " $::tabstop]
+    set tabstop [string repeat " " $tabstop]
     set text_tabs [$w get 1.0 end]
     regsub -all {\t} $text_tabs $tabstop text_spaces
     $w replace 1.0 end $text_spaces
@@ -565,9 +571,9 @@ menu .m -tearoff 0
     menu .m.edit -tearoff 0
     .m add cascade -label "Edit" -menu .m.edit -underline 0
         .m.edit add command -label "Undo" -underline 0 \
-            -accelerator "Control+Z" -command {undoCommand}
+            -accelerator "Control+Z" -command [list undoRedo .text "undo"]
         .m.edit add command -label "Redo" -underline 0 \
-            -accelerator "Control+Shift+Z" -command {redoCommand}
+            -accelerator "Control+Shift+Z" -command [list undoRedo .text "redo"]
         .m.edit add separator
         .m.edit add command -label "Cut" -underline 2 \
             -accelerator "Control+X" -command [list tk_textCut .text]
@@ -576,10 +582,13 @@ menu .m -tearoff 0
         .m.edit add command -label "Paste" -underline 0 \
             -accelerator "Control+V" -command [list tk_textPaste .text]
         .m.edit add separator
-        .m.edit add command -label "Fold Selection" -underline 0 \
-            -accelerator "Control+J" -command [list foldText .text sel]
-        .m.edit add command -label "Unfold All" -underline 7 \
-            -accelerator "Control+Shift+J" -command [list unFoldText .text "all"]
+        .m.edit add command -label "Select All" -underline 7 \
+            -accelerator "Control+A" -command [list selectAll .text]
+        .m.edit add separator
+        .m.edit add command -label "Fold Lines" -underline 0 \
+            -accelerator "Control+J" -command [list foldLines .text sel]
+        .m.edit add command -label "Unfold All" -underline 1 \
+            -accelerator "Control+Shift+J" -command [list unFoldLines .text "all"]
     menu .m.search -tearoff 0
     .m add cascade -label "Search" -menu .m.search -underline 0
         .m.search add checkbutton -label "Search..." -underline 0 \
@@ -598,9 +607,9 @@ menu .m -tearoff 0
             -variable view_marks -onvalue "true" -offvalue "false" \
             -command {toggleView .lf_marks $view_marks}
         .m.marks add command -label "Mark/Unmark" -underline 0 \
-            -accelerator "Control+M" -command [list lineMark .text]
+            -accelerator "Control+M" -command [list markLine .text]
         .m.marks add command -label "Clear All Marks" -underline 6 \
-            -accelerator "Control+Shift+M" -command [list deleteMark "all"]
+            -accelerator "Control+Shift+M" -command [list markDelete .text "all"]
     menu .m.view -tearoff 0
     .m add cascade -label "View" -menu .m.view -underline 0
         .m.view add checkbutton -label "Read Only" -underline 0 \
@@ -675,8 +684,8 @@ menu .m -tearoff 0
                 -variable tabstop -value 6 -command {setTabStop .text $tabstop}
             .m.options.tabstop add radiobutton -label "8" -underline 0 \
                 -variable tabstop -value 8 -command {setTabStop .text $tabstop}
-        .m.options add command -label "Tabs \u21d2 $tabstop Spaces" \
-                -underline 7 -command [list tabsToSpaces .text]
+        .m.options add command -label "Convert Tabs to Spaces" \
+                -underline 3 -command [list tabsToSpaces .text $tabstop]
     menu .m.help -tearoff 0
     .m add cascade -label "Help" -menu .m.help -underline 0
         .m.help add command -label "File Details..." -underline 0 \
@@ -684,7 +693,7 @@ menu .m -tearoff 0
         .m.help add command -label "System Details..." -underline 0 \
             -command {systemDetails}
         .m.help add separator
-        .m.help add command -label "About tEdit..." -underline 1 \
+        .m.help add command -label "About tEdit..." -underline 0 \
             -accelerator "F1" -command {helpAbout}
 . configure -menu .m
 
@@ -836,9 +845,18 @@ bind .text  <3>                         {focus %W; tk_popup .m.edit %X %Y}
 bind .text  <Control-3>                 {focus %W; tk_popup .m %X %Y}
 bind .text  <<Modified>>                {setModified}
 
-# Control-o/f is predefined in Text widget
-bind Text   <Control-o>     {return}
-bind Text   <Control-f>     {return}
+# deactivate some predefined Text widget's bindings
+set bindings [list \
+    <Control-a> \
+    <Control-o> \
+    <Control-f> \
+    <Control-z> \
+    <Control-Shift-Z>\
+]
+foreach key $bindings {
+    bind Text $key {return}
+}
+unset bindings key
 
 bind . <Control-o>          {.m.file    invoke "Open..."}
 bind . <Control-s>          {.m.file    invoke "Save"}
@@ -848,7 +866,8 @@ bind . <Control-q>          {.m.file    invoke "Exit"}
 bind . <Control-Shift-Q>    {exit}
 bind . <Control-z>          {.m.edit    invoke "Undo"}
 bind . <Control-Shift-Z>    {.m.edit    invoke "Redo"}
-bind . <Control-j>          {.m.edit    invoke "Fold Selection"}
+bind . <Control-a>          {.m.edit    invoke "Select All"}
+bind . <Control-j>          {.m.edit    invoke "Fold Lines"}
 bind . <Control-J>          {.m.edit    invoke "Unfold All"}
 bind . <Control-f>          {.m.search  invoke "Search..."}
 bind . <F3>                 {.m.search  invoke "Find Next"}
@@ -865,10 +884,10 @@ bind .l_recent  <Return>                    {recentOpen}
 bind .l_recent  <KP_Enter>                  {recentOpen}
 bind .l_recent  <Double-ButtonRelease-1>    {recentOpen}
 
-bind .l_marks   <Return>                    [list gotoMark .text]
-bind .l_marks   <KP_Enter>                  [list gotoMark .text]
-bind .l_marks   <Double-ButtonRelease-1>    [list gotoMark .text]
-bind .l_marks   <Delete>                    [list deleteMark "active"]
+bind .l_marks   <Return>                    [list markSee .text]
+bind .l_marks   <KP_Enter>                  [list markSee .text]
+bind .l_marks   <Double-ButtonRelease-1>    [list markSee .text]
+bind .l_marks   <Delete>                    [list markDelete .text "active"]
 
 bind .cb_search     <3>         {focus %W; tk_popup .cb_popup %X %Y}
 bind .cb_search     <Escape>    {.m.search invoke "Search..."}
