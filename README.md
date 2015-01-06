@@ -5,9 +5,10 @@ tEdit
 Features:
 
 * Word Wrap
-* Mark Line
-* Custom Folds
-* Unlimited Undo
+* Mark Lines
+* Line Spacing
+* Custom Folding
+* Unlimited Undo/Redo
 * Customizable Tabstops
 * Safe Mode (only read, not write)
 * Search (and Replace) with _Regular Expressions_
