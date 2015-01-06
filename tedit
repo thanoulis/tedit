@@ -76,8 +76,8 @@ proc scratchPad {w tabs} {
     }
 }
 
-proc setModified {} {
-    set myVars::modified [expr {[.text edit modified] ? "\[Modified\]" : ""}]
+proc setModified {w} {
+    set myVars::modified [expr {[$w edit modified] ? "\[Modified\]" : ""}]
 }
 
 proc clearModified {w} {
@@ -322,8 +322,8 @@ proc searchText {w what tag} {
                 return
             }
             $w tag add $tag $position $position+${n}c
-            $w see $position
             $w mark set insert $position
+            $w see $position
         }
     }
 }
@@ -444,6 +444,10 @@ proc toggleSafeMode {} {
     }
 }
 
+proc setSpacing {w spacing} {
+    $w configure -spacing1 $spacing
+}
+
 proc setTabStop {w tabstop} {
     $w configure -tabs "[expr {$tabstop * [font measure [$w cget -font] 0]}] left"
 }
@@ -553,6 +557,7 @@ set read_only       "false"
 set word_wrap       "none"
 set view_scratchpad "false"
 set scratchpadtabs  4
+set spacing         0
 set tabstop         4
 set blockcursor     "false"
 set search          ""
@@ -582,7 +587,7 @@ menu .m -tearoff 0
             -accelerator "Control+Shift+S" -command {saveFileDialog}
         .m.file add separator
         .m.file add checkbutton -label "Recent Files..." -underline 0 \
-            -accelerator "F2" -state "disabled" \
+            -accelerator "F6" -state "disabled" \
             -variable view_recent -onvalue "true" -offvalue "false" \
             -command {toggleView .lf_recent $view_recent}
         .m.file add separator
@@ -640,7 +645,7 @@ menu .m -tearoff 0
             -command {toggleSafeMode}
         .m.view add separator
         .m.view add checkbutton -label "Menu Bar" -underline 0 \
-            -variable view_menubar -onvalue ".m" -offvalue {} \
+            -variable view_menubar -onvalue ".m" -offvalue "" \
             -command {. configure -menu $view_menubar}
         .m.view add checkbutton -label "Status Bar" -underline 0 \
             -variable view_statusbar -onvalue "true" -offvalue "false" \
@@ -678,11 +683,27 @@ menu .m -tearoff 0
             -variable word_wrap -onvalue "word" -offvalue "none" \
             -command {.text configure -wrap $word_wrap}
         .m.options add separator
-        .m.options add command -label "Set Font..." -underline 0 \
-            -command {setFont .text $tabstop}
         .m.options add checkbutton -label "Block Cursor" -underline 4 \
             -variable blockcursor -onvalue "true" -offvalue "false" \
             -command {.text configure -blockcursor $blockcursor}
+        .m.options add separator
+        .m.options add command -label "Set Font..." -underline 0 \
+            -command {setFont .text $tabstop}
+        menu .m.options.spacing -tearoff 0
+        .m.options add cascade -label "Line Spacing" \
+                -menu .m.options.spacing -underline 0
+            .m.options.spacing add radiobutton -label "0" -underline 0 \
+                -variable spacing -value 0 -command {setSpacing .text $spacing}
+            .m.options.spacing add radiobutton -label "1" -underline 0 \
+                -variable spacing -value 1 -command {setSpacing .text $spacing}
+            .m.options.spacing add radiobutton -label "2" -underline 0 \
+                -variable spacing -value 2 -command {setSpacing .text $spacing}
+            .m.options.spacing add radiobutton -label "3" -underline 0 \
+                -variable spacing -value 3 -command {setSpacing .text $spacing}
+            .m.options.spacing add radiobutton -label "4" -underline 0 \
+                -variable spacing -value 4 -command {setSpacing .text $spacing}
+            .m.options.spacing add radiobutton -label "5" -underline 0 \
+                -variable spacing -value 5 -command {setSpacing .text $spacing}
         .m.options add separator
         .m.options add command -label "Cursor Color..." -underline 0 \
             -command {setColor .text "cursor"}
@@ -865,7 +886,7 @@ grid remove .lf_recent .f_find .lf_replace
 bind .text  <Triple-ButtonRelease-1>    {.m.marks invoke "Mark/Unmark"}
 bind .text  <3>                         {focus %W; tk_popup .m.edit %X %Y}
 bind .text  <Control-3>                 {focus %W; tk_popup .m %X %Y}
-bind .text  <<Modified>>                {setModified}
+bind .text  <<Modified>>                {setModified %W}
 
 # deactivate some predefined Text widget's bindings
 set bindings [list \
@@ -883,7 +904,7 @@ unset bindings key
 bind . <Control-o>          {.m.file    invoke "Open..."}
 bind . <Control-s>          {.m.file    invoke "Save"}
 bind . <Control-Shift-S>    {.m.file    invoke "Save As..."}
-bind . <F2>                 {.m.file    invoke "Recent Files..."}
+bind . <F6>                 {.m.file    invoke "Recent Files..."}
 bind . <Control-q>          {.m.file    invoke "Exit"}
 bind . <Control-Shift-Q>    {exit}
 bind . <Control-z>          {.m.edit    invoke "Undo"}
