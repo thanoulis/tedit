@@ -7,6 +7,8 @@ namespace eval myVars {
     variable error_msg  ""
     variable show_mode  ""
     variable modified   ""
+    variable position   ""
+    variable marks_id   0
     variable marks      [list]
     variable folds      [list]
     variable hsearch    [list]
@@ -73,6 +75,13 @@ proc scratchPad {w tabs} {
 
             .m.view entryconfigure "ScratchPad Tabs" -state disabled
         }
+    }
+}
+
+proc cursorPosition {w args} {
+    if {[lindex $args 0 1] in {insert delete mark}} {
+        scan [$w index insert] %d.%d ypos xpos
+        set myVars::position "\[$ypos,$xpos\]"
     }
 }
 
@@ -150,7 +159,7 @@ proc openFile {filename} {
     .text replace 1.0 end [read -nonewline $fh]
     close $fh
     .text mark set insert 1.0
-    .text see 1.0
+    .text see insert
     if {[file writable $filename] == 0 && $::read_only eq "false"} {
         .m.view invoke "Read Only"
     }
@@ -202,9 +211,9 @@ proc recentAdd {filename} {
     }
 }
 
-proc recentOpen {} {
+proc recentOpen {w} {
     if {[askSave] eq "cancel"} {return}
-    set filename [.l_recent get active]
+    set filename [$w get active]
     openFile $filename
 }
 
@@ -365,14 +374,20 @@ proc clearHighlight {w tags} {
 }
 
 proc markLine {w} {
-    set linenum [$w count -lines 1.0 insert+1line]
-    set mark "Line $linenum"
-    if {$mark ni $myVars::marks} {
+    set linenum [lindex [split [$w index insert] .] 0]
+    set mark [lsearch -inline -all -glob [$w tag names $linenum.0] "Mark*"]
+    if {$mark eq ""} {
+        if {[$w index $linenum.0] eq [$w index $linenum.end]} {
+            errorMessage "cannot mark line: line is empty"
+            return
+        }
+        set mark "Mark[incr myVars::marks_id]"
         $w mark set $mark $linenum.0
         $w tag configure $mark -background cyan
         $w tag raise $mark sel
         $w tag add $mark "$linenum.0" "$linenum.end"
         lappend myVars::marks $mark
+        .m.marks entryconfigure "Next Mark" -state normal
         .m.marks entryconfigure "Clear All Marks" -state normal
     } else {
         markDelete $w $mark
@@ -385,6 +400,24 @@ proc markSee {w} {
         errorMessage "select a mark"
         return
     }
+    $w mark set insert $mark
+    $w see $mark
+}
+
+proc markNext {w} {
+    if {[llength $myVars::marks] == 0} {
+        errorMessage "no marks found"
+        return
+    }
+    set mark [$w mark next insert+1char]
+    while {$mark ni $myVars::marks} {
+        if {$mark eq ""} {set mark 1.0}
+        set mark [$w mark next $mark]
+    }
+    set index [lsearch $myVars::marks $mark]
+    .l_marks selection clear 0 end
+    .l_marks selection set $index
+    .l_marks activate $index
     $w mark set insert $mark
     $w see $mark
 }
@@ -411,6 +444,7 @@ proc markDelete {w which} {
         }
     }
     if {[llength $myVars::marks] == 0} {
+        .m.marks entryconfigure "Next Mark" -state disabled
         .m.marks entryconfigure "Clear All Marks" -state disabled
     }
 }
@@ -634,6 +668,9 @@ menu .m -tearoff 0
             -command {toggleView .lf_marks $view_marks}
         .m.marks add command -label "Mark/Unmark" -underline 0 \
             -accelerator "Control+M" -command [list markLine .text]
+        .m.marks add command -label "Next Mark" -underline 0 \
+            -accelerator "F2" -state disabled \
+            -command [list markNext .text]
         .m.marks add command -label "Clear All Marks" -underline 6 \
             -accelerator "Control+Shift+M" -state disabled \
             -command [list markDelete .text "all"]
@@ -759,8 +796,7 @@ menu .cb_popup -tearoff 0
 labelframe .lf_recent -borderwidth 1 -relief flat \
     -text "Recently Opened Files:"
     listbox .l_recent -relief flat -height 5 -highlightthickness 0 \
-        -takefocus 0 -selectmode browse \
-        -yscrollcommand {.ysb_recent set}
+        -takefocus 0 -yscrollcommand {.ysb_recent set}
     ttk::scrollbar .ysb_recent -orient vertical -command {.l_recent yview}
 
     grid .l_recent      -in .lf_recent -row 0 -column 0 -sticky we
@@ -858,13 +894,15 @@ frame .f_statusbar -borderwidth 1 -relief sunken
     label .lb_message  -relief flat -textvariable myVars::error_msg
     label .lb_safemode -relief flat -textvariable myVars::show_mode
     label .lb_modified -relief flat -textvariable myVars::modified
+    label .lb_position -relief flat -textvariable myVars::position
     ttk::sizegrip .lb_sizegrip
 
     grid .lb_filename -in .f_statusbar -row 0 -column 0 -sticky w
     grid .lb_message  -in .f_statusbar -row 0 -column 1 -sticky we
     grid .lb_safemode -in .f_statusbar -row 0 -column 2
     grid .lb_modified -in .f_statusbar -row 0 -column 3
-    grid .lb_sizegrip -in .f_statusbar -row 0 -column 4 -sticky e
+    grid .lb_position -in .f_statusbar -row 0 -column 4
+    grid .lb_sizegrip -in .f_statusbar -row 0 -column 5 -sticky e
 
     grid columnconfigure .f_statusbar .lb_message -weight 1
 
@@ -883,10 +921,6 @@ grid remove .lf_recent .f_find .lf_replace
 # BINDINGS
 #
 #
-bind .text  <Triple-ButtonRelease-1>    {.m.marks invoke "Mark/Unmark"}
-bind .text  <3>                         {focus %W; tk_popup .m.edit %X %Y}
-bind .text  <Control-3>                 {focus %W; tk_popup .m %X %Y}
-bind .text  <<Modified>>                {setModified %W}
 
 # deactivate some predefined Text widget's bindings
 set bindings [list \
@@ -917,15 +951,21 @@ bind . <F3>                 {.m.search  invoke "Find Next"}
 bind . <Control-l>          {.m.search  invoke "Clear Highlight"}
 bind . <F9>                 {.m.marks   invoke "Show Marks..."}
 bind . <Control-m>          {.m.marks   invoke "Mark/Unmark"}
+bind . <F2>                 {.m.marks   invoke "Next Mark"}
 bind . <Control-M>          {.m.marks   invoke "Clear All Marks"}
 bind . <Control-r>          {.m.view    invoke "Read Only"}
 bind . <F8>                 {.m.view    invoke "ScratchPad"}
 bind . <Control-w>          {.m.options invoke "Word Wrap"}
 bind . <F1>                 {.m.help    invoke "About tEdit..."}
 
-bind .l_recent  <Return>                    {recentOpen}
-bind .l_recent  <KP_Enter>                  {recentOpen}
-bind .l_recent  <Double-ButtonRelease-1>    {recentOpen}
+bind .text  <Triple-ButtonRelease-1>    {.m.marks invoke "Mark/Unmark"}
+bind .text  <3>                         {focus %W; tk_popup .m.edit %X %Y}
+bind .text  <Control-3>                 {focus %W; tk_popup .m %X %Y}
+bind .text  <<Modified>>                [list setModified %W]
+
+bind .l_recent  <Return>                    [list recentOpen %W]
+bind .l_recent  <KP_Enter>                  [list recentOpen %W]
+bind .l_recent  <Double-ButtonRelease-1>    [list recentOpen %W]
 
 bind .l_marks   <Return>                    [list markSee .text]
 bind .l_marks   <KP_Enter>                  [list markSee .text]
@@ -951,6 +991,8 @@ focus .text
 wm title    . "tEdit"
 wm minsize  . 750 450
 wm protocol . WM_DELETE_WINDOW {.m.file invoke "Exit"}
+
+trace add execution .text leave [list cursorPosition .text]
 
 ################################################################################
 #
