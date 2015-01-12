@@ -7,7 +7,7 @@ namespace eval myVars {
     variable error_msg  ""
     variable show_mode  ""
     variable modified   ""
-    variable position   ""
+    variable position   {[1,0]}
     variable marks_id   0
     variable marks      [list]
     variable folds      [list]
@@ -34,22 +34,27 @@ proc scratchPad {w tabs} {
 
             ttk::notebook $w.note
             for {set i 1} {$i < $tabs} {incr i} {
-                frame $w.$i
-                text $w.t$i -wrap none \
-                    -xscrollcommand "$w.xscroll$i set" \
-                    -yscrollcommand "$w.yscroll$i set"
-                ttk::scrollbar $w.xscroll$i -orient horizontal \
+                frame $w.f$i
+                text $w.t$i -wrap none -highlightthickness 0 \
+                    -xscrollcommand "$w.xsb$i set" \
+                    -yscrollcommand "$w.ysb$i set"
+                ttk::scrollbar $w.xsb$i -orient horizontal \
                     -command "$w.t$i xview"
-                ttk::scrollbar $w.yscroll$i -orient vertical \
+                ttk::scrollbar $w.ysb$i -orient vertical \
                     -command "$w.t$i yview"
                 ttk::sizegrip $w.sg$i
-                grid $w.t$i -in $w.$i -row 0 -column 0 -sticky news
-                grid $w.xscroll$i -in $w.$i -row 1 -column 0 -sticky we
-                grid $w.yscroll$i -in $w.$i -row 0 -column 1 -sticky ns
-                grid $w.sg$i -in $w.$i -row 1 -column 1
-                grid rowconfigure $w.$i $w.t$i -weight 1
-                grid columnconfigure $w.$i $w.t$i -weight 1
-                $w.note add "$w.$i" -text "Scratch $i" -underline 8
+
+                grid $w.t$i   -in $w.f$i -row 0 -column 0 -sticky news
+                grid $w.xsb$i -in $w.f$i -row 1 -column 0 -sticky we
+                grid $w.ysb$i -in $w.f$i -row 0 -column 1 -sticky ns
+                grid $w.sg$i  -in $w.f$i -row 1 -column 1
+
+                grid rowconfigure    $w.f$i $w.t$i -weight 1
+                grid columnconfigure $w.f$i $w.t$i -weight 1
+
+                $w.note add "$w.f$i" -text "Scratch $i" -underline 8
+
+                bind $w.t$i <3> "focus %W; tk_popup $w.menu %X %Y"
             }
             pack $w.note -fill both -expand true
             ttk::notebook::enableTraversal $w.note
@@ -70,7 +75,6 @@ proc scratchPad {w tabs} {
                     -underline 5 -accelerator "F8" \
                     -command {.m.view invoke "ScratchPad"}
 
-            bind $w <3>     "focus %W; tk_popup $w.menu %X %Y"
             bind $w <F8>    "$w.menu invoke 4"
 
             .m.view entryconfigure "ScratchPad Tabs" -state disabled
@@ -245,7 +249,7 @@ proc foldLines {w tag} {
             $old_fold invoke
         }
     }
-    # get first line text to show in button
+    # get first line text to show in fold button
     set fold_lines [$w count -lines $from $to+1line]
     set fold_line [$w get $from_line.0 $from_line.end]
     set fold_text "\u25b6\u25b6 $fold_lines lines: $fold_line"
@@ -429,7 +433,7 @@ proc markDelete {w which} {
                 $w mark unset $mark
                 $w tag delete $mark
             }
-            .l_marks delete 0 end
+            set myVars::marks [list]
         }
         "active" {
             set mark [.l_marks get active]
