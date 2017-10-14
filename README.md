@@ -1,6 +1,5 @@
-tEdit
-=====
-**tEdit** is a simple text editor written in Tcl/Tk.
+# tEdit
+**tEdit** is a simple text editor written in [Tcl/Tk] (https://www.tcl.tk).
 
 Features:
 
@@ -10,22 +9,23 @@ Features:
 * Custom Folding
 * Unlimited Undo/Redo
 * Customizable Tabstops
-* Safe Mode (only read, not write)
-* Search (and Replace) with _Regular Expressions_
-* ScratchPad (with maximum of 9 tabs)
+* Safe Mode (read only)
+* Search/Replace supporting _Regular Expressions_
+* Tabbed ScratchPad
 * Customizable Colors and Fonts
 * Runs in Linux, Windows and Unix (OSX not tested)
 
 
-DEPENDENCIES
-------------
+## DEPENDENCIES
 **Tcl** version 8.5 or later.
 
 **Tk** version 8.5 or later.
 
+##### for windows users
+[ActiveTcl] (https://www.activestate.com/activetcl) version 8.5 or later.
 
-LICENSE
--------
-**tEdit** is licensed under the _MIT License_.
+
+## LICENSE
+**tEdit** is licensed under the **MIT License**.
 
 Read LICENSE for details.
