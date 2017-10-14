@@ -13,7 +13,7 @@ Features:
 * Search/Replace supporting *Regular Expressions*
 * Tabbed ScratchPad
 * Customizable Colors and Fonts
-* Runs in Linux, Windows and Unix (OSX not tested)
+* Runs in GNU/Linux, MS-Windows and Unix (MacOS not tested)
 
 
 ## DEPENDENCIES
@@ -21,7 +21,7 @@ Features:
 
 **Tk** version 8.5 or later.
 
-##### for windows users
+##### For MS-Windows users:
 [ActiveTcl](https://www.activestate.com/activetcl) version 8.5 or later.
 
 
