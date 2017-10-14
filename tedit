@@ -19,6 +19,7 @@ namespace eval myVars {
     variable folds      [list]
     variable hsearch    [list]
     variable hreplace   [list]
+    variable theme      "default"
 }
 
 ################################################################################
@@ -755,6 +756,13 @@ menu .m -tearoff 0
                 -variable spacing -value 4 -command {setSpacing .text $spacing}
             .m.options.spacing add radiobutton -label "5" -underline 0 \
                 -variable spacing -value 5 -command {setSpacing .text $spacing}
+        .m.options add separator
+        menu .m.options.themes -tearoff 0
+        .m.options add cascade -label "Themes" -menu .m.options.themes -underline 3
+            foreach theme [ttk::themes] {
+                .m.options.themes add radiobutton -label $theme \
+                    -variable myVars::theme -value $theme -command [list ttk::setTheme $theme]
+            }
         .m.options add separator
         .m.options add command -label "Cursor Color..." -underline 0 \
             -command {setColor .text "cursor"}
