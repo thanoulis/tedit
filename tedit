@@ -2,6 +2,12 @@
 
 package require Tk
 
+namespace eval scratchPad {
+    variable view       "false"
+    variable count      0
+    variable notebook   ""
+}
+
 namespace eval myVars {
     variable filename   ""
     variable error_msg  ""
@@ -20,8 +26,66 @@ namespace eval myVars {
 # PROCEDURES
 #
 #
-proc scratchPad {w tabs} {
-    if {$::view_scratchpad eq "false"} {
+proc newScratchTab {w count} {
+    frame [set tab_frame $w.f_$count]
+    set tab_text $w.text_$count
+    set tab_yscroll $w.yscroll_$count
+    set tab_xscroll $w.xscroll_$count
+
+    text $tab_text -wrap none -highlightthickness 0 \
+        -yscrollcommand "$tab_yscroll set" \
+        -xscrollcommand "$tab_xscroll set"
+
+    ttk::scrollbar $tab_yscroll \
+        -orient vertical -command "$tab_text yview"
+    ttk::scrollbar $tab_xscroll \
+        -orient horizontal -command "$tab_text xview"
+
+    grid $tab_text      -in $tab_frame -row 0 -column 0 -sticky news
+    grid $tab_yscroll   -in $tab_frame -row 0 -column 1 -sticky ns
+    grid $tab_xscroll   -in $tab_frame -row 1 -column 0 -sticky we
+
+    grid rowconfigure       $tab_frame $tab_text -weight 1
+    grid columnconfigure    $tab_frame $tab_text -weight 1
+
+    $w add $tab_frame -text "Scratch $count"
+    focus $tab_text
+    incr scratchPad::count
+    
+    menu [set scratchPopup $w.menu_$count] -tearoff 0
+        $scratchPopup add command -label "New Tab" \
+            -underline 0 \
+            -command {newScratchTab $scratchPad::notebook $scratchPad::count}
+        $scratchPopup add command -label "Close Tab" \
+            -underline 1  \
+            -command {closeScratchTab $scratchPad::notebook}
+        $scratchPopup add separator
+        $scratchPopup add command -label "Cut" \
+            -underline 2 -accelerator "Control-X" \
+            -command {event generate [focus] <<Cut>>}
+        $scratchPopup add command -label "Copy" \
+            -underline 0 -accelerator "Control-C" \
+            -command {event generate [focus] <<Copy>>}
+        $scratchPopup add command -label "Paste" \
+            -underline 0 -accelerator "Control-V" \
+            -command {event generate [focus] <<Paste>>}
+        $scratchPopup add separator
+        $scratchPopup add command -label "Hide ScratchPad" \
+            -underline 5 -accelerator "F8" \
+            -command {.m.view invoke "ScratchPad"}
+
+    bind $tab_text <3> "focus %W; tk_popup $scratchPopup %X %Y"
+}
+
+proc closeScratchTab {w} {
+    if {[$w index end] <= 1} {.m.view invoke "ScratchPad"; return}
+    set tab_current [$w index current]
+    $w forget $tab_current
+    destroy $tab_current
+}
+
+proc scratchPad {w} {
+    if {$scratchPad::view eq "false"} {
         wm withdraw $w
     } else {
         if [winfo exists $w] {
@@ -30,54 +94,15 @@ proc scratchPad {w tabs} {
             toplevel $w -class "Tedit"
             wm title $w "ScratchPad - tEdit"
             wm transient $w
-            wm protocol $w WM_DELETE_WINDOW "$w.menu invoke 4"
+            wm protocol $w WM_DELETE_WINDOW {.m.view invoke "ScratchPad"}
 
-            ttk::notebook $w.note
-            for {set i 1} {$i < $tabs} {incr i} {
-                frame $w.f$i
-                text $w.t$i -wrap none -highlightthickness 0 \
-                    -xscrollcommand "$w.xsb$i set" \
-                    -yscrollcommand "$w.ysb$i set"
-                ttk::scrollbar $w.xsb$i -orient horizontal \
-                    -command "$w.t$i xview"
-                ttk::scrollbar $w.ysb$i -orient vertical \
-                    -command "$w.t$i yview"
-                ttk::sizegrip $w.sg$i
+            ttk::notebook [set scratchPad::notebook $w.note]
+            newScratchTab $scratchPad::notebook $scratchPad::count
+            pack $scratchPad::notebook -fill both -expand true
 
-                grid $w.t$i   -in $w.f$i -row 0 -column 0 -sticky news
-                grid $w.xsb$i -in $w.f$i -row 1 -column 0 -sticky we
-                grid $w.ysb$i -in $w.f$i -row 0 -column 1 -sticky ns
-                grid $w.sg$i  -in $w.f$i -row 1 -column 1
+            ttk::notebook::enableTraversal $scratchPad::notebook
 
-                grid rowconfigure    $w.f$i $w.t$i -weight 1
-                grid columnconfigure $w.f$i $w.t$i -weight 1
-
-                $w.note add "$w.f$i" -text "Scratch $i" -underline 8
-
-                bind $w.t$i <3> "focus %W; tk_popup $w.menu %X %Y"
-            }
-            pack $w.note -fill both -expand true
-            ttk::notebook::enableTraversal $w.note
-            focus $w.t1
-
-            menu $w.menu -tearoff 0
-                $w.menu add command -label "Cut" \
-                    -underline 2 -accelerator "Control-X" \
-                    -command {event generate [focus] <<Cut>>}
-                $w.menu add command -label "Copy" \
-                    -underline 0 -accelerator "Control-C" \
-                    -command {event generate [focus] <<Copy>>}
-                $w.menu add command -label "Paste" \
-                    -underline 0 -accelerator "Control-V" \
-                    -command {event generate [focus] <<Paste>>}
-                $w.menu add separator
-                $w.menu add command -label "Hide ScratchPad" \
-                    -underline 5 -accelerator "F8" \
-                    -command {.m.view invoke "ScratchPad"}
-
-            bind $w <F8>    "$w.menu invoke 4"
-
-            .m.view entryconfigure "ScratchPad Tabs" -state disabled
+            bind $w <F8> {.m.view invoke "ScratchPad"}
         }
     }
 }
@@ -126,7 +151,7 @@ proc askSave {} {
                 saveFile $myVars::filename
                 if {$myVars::modified ne ""} {return "cancel"}
             }
-            "no"        {}
+            "no"        {return 0}
             "cancel"    {return "cancel"}
         }
     }
@@ -200,8 +225,7 @@ proc saveFile {filename} {
 }
 
 proc exitCommand {} {
-    if {[askSave] eq "cancel"} {return}
-    exit
+    if {[askSave] ne "cancel"} {exit}
 }
 
 proc recentAdd {filename} {
@@ -575,8 +599,11 @@ proc helpAbout {} {
     tk_messageBox \
         -title "About tEdit" -icon info -type ok \
         -message "tEdit" \
-        -detail "is a simple text editor,\nwritten in pure Tcl/Tk.\n\n\
-Copyright \u00A9 2014-2015 Thanos Zygouris\n<athanasios.zygouris@gmail.com>"
+        -detail "A simple text editor,\nwritten in pure Tcl/Tk.\n\n\
+The MIT License\n\n\
+Copyright \u00A9 2014-2018\n\
+Thanos Zygouris\n\
+<athanasios.zygouris@gmail.com>\n"
 }
 
 ################################################################################
@@ -593,8 +620,6 @@ set view_yscroll    "true"
 set view_xscroll    "true"
 set read_only       "false"
 set word_wrap       "none"
-set view_scratchpad "false"
-set scratchpadtabs  4
 set spacing         0
 set tabstop         4
 set blockcursor     "false"
@@ -700,23 +725,8 @@ menu .m -tearoff 0
         .m.view add separator
         .m.view add checkbutton -label "ScratchPad" -underline 7 \
             -accelerator "F8" \
-            -variable view_scratchpad -onvalue "true" -offvalue "false" \
-            -command {scratchPad .scratchpad $scratchpadtabs}
-        menu .m.view.tabs -tearoff 0
-        .m.view add cascade -label "ScratchPad Tabs" \
-                -menu .m.view.tabs -underline 11
-            .m.view.tabs add radiobutton -label "1" -underline 0 \
-                -variable scratchpadtabs -value 2
-            .m.view.tabs add radiobutton -label "2" -underline 0 \
-                -variable scratchpadtabs -value 3
-            .m.view.tabs add radiobutton -label "3" -underline 0 \
-                -variable scratchpadtabs -value 4
-            .m.view.tabs add radiobutton -label "4" -underline 0 \
-                -variable scratchpadtabs -value 5
-            .m.view.tabs add radiobutton -label "5" -underline 0 \
-                -variable scratchpadtabs -value 6
-            .m.view.tabs add radiobutton -label "9" -underline 0 \
-                -variable scratchpadtabs -value 10
+            -variable scratchPad::view -onvalue "true" -offvalue "false" \
+            -command {scratchPad .scratchpad}
     menu .m.options -tearoff 0
     .m add cascade -label "Options" -menu .m.options -underline 0
         .m.options add checkbutton -label "Word Wrap" -underline 5 \
