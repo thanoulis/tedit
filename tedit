@@ -45,7 +45,7 @@ proc newScratchTab {w count} {
             -underline 0 -accelerator "Control-T" \
             -command {newScratchTab $scratchPad::notebook $scratchPad::count}
         $scratchPad::popup_menu add command -label "Close Tab" \
-            -underline 1  -accelerator "Control-F4" -state disable \
+            -underline 1  -accelerator "Control-F4" -state disabled \
             -command {closeScratchTab $scratchPad::notebook}
         $scratchPad::popup_menu add separator
         $scratchPad::popup_menu add command -label "Cut" \
@@ -63,7 +63,7 @@ proc newScratchTab {w count} {
             -command {.m.view invoke "ScratchPad"}
 
     if {[$w index end] > 1} {
-        $scratchPad::popup_menu entryconfigure 1 -state normal
+        $scratchPad::popup_menu entryconfigure "Close Tab" -state normal
     }
 
     bind $tab_text <3> {focus %W; tk_popup $scratchPad::popup_menu %X %Y}
@@ -74,7 +74,7 @@ proc closeScratchTab {w} {
     $w forget $tab_current
     destroy $tab_current
     if {[$w index end] <= 1} {
-        $scratchPad::popup_menu entryconfigure 1 -state disable
+        $scratchPad::popup_menu entryconfigure "Close Tab" -state disabled
     }
 }
 
@@ -100,6 +100,7 @@ proc scratchPad {w} {
             bind $w <Control-F4> {$scratchPad::popup_menu invoke "Close Tab"}
 
             bind $w <F8>        {.m.view invoke "ScratchPad"}
+            bind $w <Escape>    {.m.view invoke "ScratchPad"}
             bind $w <Control-q> {.m.view invoke "ScratchPad"}
         }
     }
@@ -111,24 +112,25 @@ proc scratchPad {w} {
 #
 #
 namespace eval tEdit {
-    variable view_menubar    ".m"
-    variable view_statusbar  "true"
-    variable view_yscroll    "true"
-    variable view_xscroll    "true"
-    variable read_only       "false"
-    variable word_wrap       "none"
-    variable spacing         0
-    variable tabstop         4
-    variable blockcursor     "false"
-    variable search          ""
-    variable match_case      "false"
-    variable reg_exp         "-exact"
-    variable view_replace    "false"
-    variable replace         ""
+    variable view_menubar   ".m"
+    variable view_statusbar "true"
+    variable view_yscroll   "true"
+    variable view_xscroll   "true"
+    variable read_only      "false"
+    variable word_wrap      "none"
+    variable spacing        0
+    variable tabstop        4
+    variable blockcursor    "false"
+    variable search         ""
+    variable match_case     "false"
+    variable reg_exp        "-exact"
+    variable view_replace   "false"
+    variable replace        ""
     variable view_search    "false"
     variable view_recent    "false"
     variable view_marks     "false"
     variable filename       ""
+    variable savename       ""
     variable error_msg      ""
     variable show_mode      ""
     variable modified       ""
@@ -165,11 +167,11 @@ proc clearModified {w} {
 proc updateGUI {filename} {
     if {$filename eq ""} {
         set tEdit::filename ""
-        .m.help entryconfigure 0 -state disabled
+        .m.help entryconfigure "File Details..." -state disabled
         wm title . "tEdit"
     } else {
         set tEdit::filename $filename
-        .m.help entryconfigure 0 -state normal
+        .m.help entryconfigure "File Details..." -state normal
         wm title . "$filename - tEdit"
         recentAdd $filename
     }
@@ -187,17 +189,25 @@ proc askSave {} {
             -message "File has changed!" -detail "Save changes?"]
         switch -- $answer {
             "yes" {
-                saveFile $tEdit::filename
-                if {$tEdit::modified ne ""} {return "cancel"}
+                if {$tEdit::filename eq ""} {
+                    if {[saveFileDialog] == 0} {
+                        return [saveFile $tEdit::savename]
+                    } else {
+                        return 2
+                    }
+                } else {
+                    return [saveFile $tEdit::filename]
+                }
             }
-            "no"        {return 0}
-            "cancel"    {return "cancel"}
+            "no" {return 0}
+            "cancel" {return 2}
         }
     }
+    return 0
 }
 
 proc newFile {} {
-    if {[askSave] eq "cancel"} {return}
+    if {[askSave] != 0} {return 2}
     if {$tEdit::read_only eq "true"} {.m.view invoke "Read Only"}
     .text delete 1.0 end
     updateGUI ""
@@ -206,7 +216,7 @@ proc newFile {} {
 }
 
 proc openFileDialog {} {
-    if {[askSave] eq "cancel"} {return}
+    if {[askSave] != 0} {return 2}
     set filename [tk_getOpenFile -title "Open File"]
     if {$filename eq "" } {return 2}
     if {[file type $filename] ne "file"} {
@@ -214,8 +224,9 @@ proc openFileDialog {} {
             -message "Cannot open file:" \
             -detail "$filename\nis a [file type $filename]."
         return 1
+    } else {
+        openFile $filename
     }
-    openFile $filename
 }
 
 proc openFile {filename} {
@@ -228,7 +239,7 @@ proc openFile {filename} {
     close $fh
     .text mark set insert 1.0
     .text see insert
-    if {[file writable $filename] == 0 && $tEdit::read_only eq "false"} {
+    if {[file writable $filename] == 0} {
         .m.view invoke "Read Only"
     }
     updateGUI $filename
@@ -239,19 +250,34 @@ proc openFile {filename} {
 proc saveFileDialog {} {
     set filename [tk_getSaveFile -title "Save As"]
     if {$filename eq "" } {return 2}
-    if {[file exists $filename] && [file type $filename] ne "file"} {
-        tk_messageBox -title "Cannot save file!" -icon error -type ok \
-            -message "Cannot save [file tail $filename]:" \
-            -detail "$filename\nis a [file type $filename]."
-        return 1
+    if {[file exists $filename]} {
+        if {[file type $filename] ne "file"} {
+            tk_messageBox -title "Cannot save file!" -icon error -type ok \
+                -message "Cannot save [file tail $filename]:" \
+                -detail "$filename\nis a [file type $filename]."
+            return 1
+        } elseif {[file writable $filename] == 0} {
+            tk_messageBox -title "Cannot save file!" -icon error -type ok \
+                -message "Cannot save [file tail $filename]:" \
+                -detail "$filename\nis read only."
+            return 1
+        } else {
+            set tEdit::savename $filename
+            return 0
+        }
+    } else {
+        set tEdit::savename $filename
+        return 0
     }
-    saveFile $filename
 }
 
 proc saveFile {filename} {
     if {$filename eq ""} {
-        saveFileDialog
-        return
+        if {[saveFileDialog] == 0} {
+            set filename $tEdit::savename
+        } else {
+            return 2
+        }
     }
     if [catch {set fh [open $filename w]} msg] {
         errorMessage [lindex [split $msg :] 1]
@@ -261,10 +287,15 @@ proc saveFile {filename} {
     close $fh
     updateGUI $filename
     clearModified .text
+    return 0
+}
+
+proc saveAs {} {
+    if {[saveFileDialog] == 0} {saveFile $tEdit::filename}
 }
 
 proc exitCommand {} {
-    if {[askSave] ne "cancel"} {exit 0}
+    if {[askSave] == 0} {exit 0}
 }
 
 proc recentAdd {filename} {
@@ -279,7 +310,7 @@ proc recentAdd {filename} {
 }
 
 proc recentOpen {w} {
-    if {[askSave] eq "cancel"} {return}
+    if {[askSave] != 0} {return 2}
     set filename [$w get active]
     openFile $filename
 }
@@ -669,7 +700,7 @@ proc createMenus {} {
             .m.file add command -label "Save" -underline 0 \
                 -accelerator "Control+S" -command {saveFile $tEdit::filename}
             .m.file add command -label "Save As..." -underline 5 \
-                -accelerator "Control+Shift+S" -command {saveFileDialog}
+                -accelerator "Control+Shift+S" -command {saveAs}
             .m.file add separator
             .m.file add checkbutton -label "Recent Files..." -underline 0 \
                 -accelerator "F6" -state "disabled" \
@@ -714,7 +745,7 @@ proc createMenus {} {
         menu .m.marks -tearoff 0
         .m add cascade -label "Marks" -underline 0 -menu .m.marks
             .m.marks add checkbutton -label "Show Marks..." -underline 0 \
-                -accelerator "F9" \
+                -accelerator "F5" \
                 -variable tEdit::view_marks -onvalue "true" -offvalue "false" \
                 -command {toggleView .lf_marks $tEdit::view_marks}
             .m.marks add command -label "Mark/Unmark" -underline 0 \
@@ -984,7 +1015,7 @@ proc createBindings {} {
     bind . <Control-f>          {.m.search  invoke "Search..."}
     bind . <F3>                 {.m.search  invoke "Find Next"}
     bind . <Control-l>          {.m.search  invoke "Clear Highlight"}
-    bind . <F9>                 {.m.marks   invoke "Show Marks..."}
+    bind . <F5>                 {.m.marks   invoke "Show Marks..."}
     bind . <Control-m>          {.m.marks   invoke "Mark/Unmark"}
     bind . <F2>                 {.m.marks   invoke "Next Mark"}
     bind . <Control-M>          {.m.marks   invoke "Clear All Marks"}
@@ -996,16 +1027,16 @@ proc createBindings {} {
     bind .text  <Triple-ButtonRelease-1>    {.m.marks invoke "Mark/Unmark"}
     bind .text  <3>                         {focus %W; tk_popup .m.edit %X %Y}
     bind .text  <Control-3>                 {focus %W; tk_popup .m %X %Y}
-    bind .text  <<Modified>>                [list setModified %W]
+    bind .text  <<Modified>>                {setModified %W}
 
-    bind .l_recent  <Return>                    [list recentOpen %W]
-    bind .l_recent  <KP_Enter>                  [list recentOpen %W]
-    bind .l_recent  <Double-ButtonRelease-1>    [list recentOpen %W]
+    bind .l_recent  <Return>                    {recentOpen %W}
+    bind .l_recent  <KP_Enter>                  {recentOpen %W}
+    bind .l_recent  <Double-ButtonRelease-1>    {recentOpen %W}
 
-    bind .l_marks   <Return>                    [list markSee .text]
-    bind .l_marks   <KP_Enter>                  [list markSee .text]
-    bind .l_marks   <Double-ButtonRelease-1>    [list markSee .text]
-    bind .l_marks   <Delete>                    [list markDelete .text "active"]
+    bind .l_marks   <Return>                    {markSee .text}
+    bind .l_marks   <KP_Enter>                  {markSee .text}
+    bind .l_marks   <Double-ButtonRelease-1>    {markSee .text}
+    bind .l_marks   <Delete>                    {markDelete .text active}
 
     bind .cb_search     <3>         {focus %W; tk_popup .cb_popup %X %Y}
     bind .cb_search     <Escape>    {.m.search invoke "Search..."}
