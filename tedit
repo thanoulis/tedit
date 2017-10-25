@@ -3,9 +3,7 @@
 package require Tk
 
 ################################################################################
-#
 # SCRATCHPAD
-#
 #
 namespace eval scratchPad {
     variable view       "false"
@@ -107,9 +105,7 @@ proc scratchPad {w} {
 }
 
 ################################################################################
-#
 # TEDIT
-#
 #
 namespace eval tEdit {
     variable view_menubar   ".m"
@@ -144,9 +140,7 @@ namespace eval tEdit {
 }
 
 ################################################################################
-#
 # PROCEDURES
-#
 #
 proc cursorPosition {w args} {
     if {[lindex $args 0 1] in {insert delete mark}} {
@@ -480,7 +474,7 @@ proc markLine {w} {
         }
         set mark "Mark[incr tEdit::marks_id]"
         $w mark set $mark $linenum.0
-        $w tag configure $mark -background cyan
+        $w tag configure $mark -underline true
         $w tag raise $mark sel
         $w tag add $mark "$linenum.0" "$linenum.end"
         lappend tEdit::marks $mark
@@ -676,18 +670,13 @@ Thanos Zygouris\n\
 }
 
 ################################################################################
-#
 # STYLES
 #
-#
-
 ttk::style configure white.TCombobox    -fieldbackground white
 ttk::style configure red.TCombobox      -fieldbackground red
 
 ################################################################################
-#
 # MENUS
-#
 #
 proc createMenus {} {
     menu .m -tearoff 0
@@ -799,7 +788,7 @@ proc createMenus {} {
                     .m.options.spacing add radiobutton -label $i -underline 0 \
                         -variable tEdit::spacing -value $i \
                         -command {setSpacing .text $tEdit::spacing}
-                    }
+                }
             .m.options add separator
             menu .m.options.themes -tearoff 0
             .m.options add cascade -label "Themes" -underline 0 -menu .m.options.themes
@@ -826,7 +815,7 @@ proc createMenus {} {
                     .m.options.tabstop add radiobutton -label $i -underline 0 \
                         -variable tEdit::tabstop -value $i \
                         -command {setTabstop .text $tEdit::tabstop}
-                    }
+                }
             .m.options add command -label "Tabs to Spaces" -underline 8 \
                 -command {tabsToSpaces .text $tEdit::tabstop}
         menu .m.help -tearoff 0
@@ -853,9 +842,7 @@ proc createMenus {} {
 }
 
 ################################################################################
-#
 # WIDGETS
-#
 #
 proc createWidgets {} {
     ttk::labelframe .lf_recent -borderwidth 1 -relief flat \
@@ -983,9 +970,7 @@ proc createWidgets {} {
 }
 
 ################################################################################
-#
 # BINDINGS
-#
 #
 proc createBindings {} {
     # deactivate some predefined Text widget's bindings
@@ -1048,9 +1033,7 @@ proc createBindings {} {
 }
 
 ################################################################################
-#
 # MAIN PROGRAM
-#
 #
 createMenus
 createWidgets
@@ -1065,9 +1048,7 @@ wm protocol . WM_DELETE_WINDOW {.m.file invoke "Exit"}
 trace add execution .text leave [list cursorPosition .text]
 
 ################################################################################
-#
-# COMMAND LINE ARGUMENTS
-#
+# COMMAND LINE
 #
 if {$::argc > 0} {
     set tEdit::filename [lindex $::argv end]
