@@ -15,20 +15,20 @@ namespace eval Scratchpad {
 proc createScratchpadMenu {w} {
     menu [set Scratchpad::menu $w.popup_menu] -tearoff 0
         $Scratchpad::menu add command -label "New Tab" \
-            -underline 0 -accelerator "Control-T" \
+            -underline 0 -accelerator "Control+T" \
             -command {newScratchpadTab $Scratchpad::notebook $Scratchpad::count}
         $Scratchpad::menu add command -label "Close Tab" \
-            -underline 1  -accelerator "Control-F4" -state disabled \
+            -underline 1  -accelerator "Control+F4" -state disabled \
             -command {closeScratchpadTab $Scratchpad::notebook}
         $Scratchpad::menu add separator
         $Scratchpad::menu add command -label "Cut" \
-            -underline 2 -accelerator "Control-X" \
+            -underline 2 -accelerator "Control+X" \
             -command {event generate [focus] <<Cut>>}
         $Scratchpad::menu add command -label "Copy" \
-            -underline 0 -accelerator "Control-C" \
+            -underline 0 -accelerator "Control+C" \
             -command {event generate [focus] <<Copy>>}
         $Scratchpad::menu add command -label "Paste" \
-            -underline 0 -accelerator "Control-V" \
+            -underline 0 -accelerator "Control+V" \
             -command {event generate [focus] <<Paste>>}
         $Scratchpad::menu add separator
         $Scratchpad::menu add command -label "Hide Scratchpad" \
@@ -37,10 +37,10 @@ proc createScratchpadMenu {w} {
 }
 
 proc newScratchpadTab {w count} {
-    ttk::frame [set scratchpadTab(frame) $w.f_$count]
-    set scratchpadTab(text) $w.text_$count
-    set scratchpadTab(yscroll) $w.yscroll_$count
-    set scratchpadTab(xscroll) $w.xscroll_$count
+    ttk::frame [set scratchpadTab(frame) $w.f$count]
+    set scratchpadTab(text) $w.text$count
+    set scratchpadTab(yscroll) $w.yscroll$count
+    set scratchpadTab(xscroll) $w.xscroll$count
 
     tk::text $scratchpadTab(text) -wrap none -highlightthickness 0 \
         -yscrollcommand [list $scratchpadTab(yscroll) set] \
@@ -154,7 +154,7 @@ proc cursorPosition {w args} {
 }
 
 proc setModified {w} {
-    set tEdit::modified [expr {[$w edit modified] ? "\[Modified\]" : ""}]
+    set tEdit::modified [expr {[$w edit modified] ? {[Modified]} : ""}]
 }
 
 proc clearModified {w} {
@@ -206,7 +206,7 @@ proc askSave {} {
 
 proc newFile {} {
     if {[askSave] != 0} {return 2}
-    if {$tEdit::read_only eq "true"} {.m.show invoke "Read Only"}
+    if {$tEdit::read_only eq "true"} {.m.options invoke "Read Only"}
     .text delete 1.0 end
     updateGUI ""
     markDelete .text "all"
@@ -232,13 +232,13 @@ proc openFile {filename} {
         errorMessage [lindex [split $msg :] 1]
         return 1
     }
-    if {$tEdit::read_only eq "true"} {.m.show invoke "Read Only"}
+    if {$tEdit::read_only eq "true"} {.m.options invoke "Read Only"}
     .text replace 1.0 end [read -nonewline $fh]
     close $fh
     .text mark set insert 1.0
     .text see insert
     if {[file writable $filename] == 0} {
-        .m.show invoke "Read Only"
+        .m.options invoke "Read Only"
     }
     updateGUI $filename
     markDelete .text "all"
@@ -600,7 +600,7 @@ proc toggleView {w show} {
 }
 
 proc toggleSafeMode {} {
-    set tEdit::show_mode [expr {$tEdit::read_only eq "true" ? "\[Safe Mode\]" : ""}]
+    set tEdit::show_mode [expr {$tEdit::read_only eq "true" ? {[Safe Mode]} : ""}]
     set state [expr {$tEdit::read_only eq "true" ? "disabled" : "normal"}]
     if {$tEdit::read_only eq "true" && $tEdit::show_replace eq "true"} {
         .ck_replace invoke
@@ -639,9 +639,9 @@ proc selectFont {w font} {
 }
 
 proc setFont {w tabstop} {
-    tk fontchooser configure -title "Set Font" -parent .
-    tk fontchooser [expr {[tk fontchooser configure -visible] ? "hide" : "show"}]
-    tk fontchooser configure -font [$w cget -font] -command [list selectFont $w]
+    tk fontchooser configure -title "Set Font" -parent . \
+        -font [$w cget -font] -command [list selectFont $w]
+    tk fontchooser show
     $w configure -tabs "[expr {$tabstop * [font measure [$w cget -font] 0]}] left"
 }
 
@@ -706,12 +706,14 @@ proc systemDetails {} {
 proc helpAbout {} {
     tk_messageBox \
         -title "About tEdit" -icon info -type ok \
-        -message {tEdit} \
-        -detail "A simple text editor,\nwritten in pure Tcl/Tk.\n\n\
-The MIT License\n\n\
-Copyright \u00A9 2014-2018\n\
-Thanos Zygouris\n\
-<athanasios.zygouris@gmail.com>\n"
+        -message "tEdit" -detail \
+{A simple text editor,
+written in pure Tcl/Tk.
+
+The MIT License
+
+Copyright (c) Thanos Zygouris
+<athanasios.zygouris@gmail.com>}
 }
 
 ################################################################################
@@ -795,10 +797,6 @@ proc createMenus {} {
             .m.show add checkbutton -label "DirTree" -underline 0 \
                 -variable tEdit::show_dirtree -onvalue "true" -offvalue "false" \
                 -command {toggleDirTree}
-            .m.show add checkbutton -label "Read Only" -underline 0 \
-                -accelerator "Control+R" \
-                -variable tEdit::read_only -onvalue "true" -offvalue "false" \
-                -command {toggleSafeMode}
             .m.show add separator
             .m.show add checkbutton -label "Menu Bar" -underline 0 \
                 -variable tEdit::show_menubar -onvalue ".m" -offvalue "" \
@@ -819,6 +817,10 @@ proc createMenus {} {
                 -command {showScratchpad .scratchpad}
         menu .m.options -tearoff 0
         .m add cascade -label "Options" -underline 0 -menu .m.options
+            .m.options add checkbutton -label "Read Only" -underline 0 \
+                -accelerator "Control+R" \
+                -variable tEdit::read_only -onvalue "true" -offvalue "false" \
+                -command {toggleSafeMode}
             .m.options add checkbutton -label "Word Wrap" -underline 5 \
                 -accelerator "Control+W" \
                 -variable tEdit::word_wrap -onvalue "word" -offvalue "none" \
@@ -879,13 +881,13 @@ proc createMenus {} {
 
     menu .find_popup -tearoff 0
         .find_popup add command -label "Cut" \
-            -underline 2 -accelerator "Control-X" \
+            -underline 2 -accelerator "Control+X" \
             -command {event generate [focus] <<Cut>>}
         .find_popup add command -label "Copy" \
-            -underline 0 -accelerator "Control-C" \
+            -underline 0 -accelerator "Control+C" \
             -command {event generate [focus] <<Copy>>}
         .find_popup add command -label "Paste" \
-            -underline 0 -accelerator "Control-V" \
+            -underline 0 -accelerator "Control+V" \
             -command {event generate [focus] <<Paste>>}
 }
 
@@ -1054,6 +1056,13 @@ proc createBindings {} {
     }
     unset bindings key
 
+    bind . <<TkFontchooserVisibility>> {
+        if {[tk fontchooser configure -visible]} {
+            .m.options entryconfigure "Set Font..." -state disabled
+        } else {
+            .m.options entryconfigure "Set Font..." -state normal
+        }
+    }
     bind . <Control-o>          {.m.file    invoke "Open..."}
     bind . <Control-s>          {.m.file    invoke "Save"}
     bind . <Control-Shift-S>    {.m.file    invoke "Save As..."}
@@ -1072,8 +1081,8 @@ proc createBindings {} {
     bind . <Control-m>          {.m.marks   invoke "Mark/Unmark"}
     bind . <F2>                 {.m.marks   invoke "Next Mark"}
     bind . <Control-M>          {.m.marks   invoke "Clear All Marks"}
-    bind . <Control-r>          {.m.show    invoke "Read Only"}
     bind . <F8>                 {.m.show    invoke "Scratchpad"}
+    bind . <Control-r>          {.m.options invoke "Read Only"}
     bind . <Control-w>          {.m.options invoke "Word Wrap"}
     bind . <F1>                 {.m.help    invoke "About tEdit..."}
 
