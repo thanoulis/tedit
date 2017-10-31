@@ -100,12 +100,18 @@ proc showScratchpad {w} {
             bind $w <Control-t>  {$Scratchpad::menu invoke "New Tab"}
             bind $w <Control-F4> {$Scratchpad::menu invoke "Close Tab"}
 
-            bind $w <F8>        {.m.show invoke "Scratchpad"}
-            bind $w <Escape>    {.m.show invoke "Scratchpad"}
-            bind $w <Control-q> {.m.show invoke "Scratchpad"}
+            foreach keysym [list <F8> <Escape> <Control-q>] {
+                bind $w $keysym {.m.show invoke "Scratchpad"}
+            }
+
+            # make Return and keypad Enter behave the same
+            foreach keysym [list <KP_Enter> <Extended-Return>] {
+                bind $w $keysym {event generate %W <Return>}
+            }
         }
     }
 }
+
 
 ################################################################################
 # TEDIT
@@ -1049,7 +1055,7 @@ proc createWidgets {} {
 # BINDINGS
 #
 proc createBindings {} {
-    # deactivate some predefined Text widget's bindings
+    # deactivate some predefined bindings from Text widget
     set bindings [list \
         <Control-a> \
         <Control-f> \
@@ -1061,8 +1067,8 @@ proc createBindings {} {
     foreach key $bindings {
         bind Text $key {return}
     }
-    unset bindings key
 
+    # main window bindings
     bind . <<TkFontchooserVisibility>> {
         if {[tk fontchooser configure -visible]} {
             .m.options entryconfigure "Set Font..." -state disabled
@@ -1070,55 +1076,66 @@ proc createBindings {} {
             .m.options entryconfigure "Set Font..." -state normal
         }
     }
-    bind . <Control-o>          {.m.file    invoke "Open..."}
-    bind . <Control-s>          {.m.file    invoke "Save"}
-    bind . <Control-Shift-S>    {.m.file    invoke "Save As..."}
-    bind . <F6>                 {.m.file    invoke "Recent Files..."}
-    bind . <Control-q>          {.m.file    invoke "Exit"}
-    bind . <Control-Shift-Q>    {exit}
-    bind . <Control-z>          {.m.edit    invoke "Undo"}
-    bind . <Control-Shift-Z>    {.m.edit    invoke "Redo"}
-    bind . <Control-a>          {.m.edit    invoke "Select All"}
-    bind . <Control-j>          {.m.edit    invoke "Fold Lines"}
-    bind . <Control-J>          {.m.edit    invoke "Unfold All"}
-    bind . <Control-f>          {.m.search  invoke "Search..."}
-    bind . <F3>                 {.m.search  invoke "Find Next"}
-    bind . <Control-l>          {.m.search  invoke "Clear Highlight"}
-    bind . <F5>                 {.m.marks   invoke "Show Marks..."}
-    bind . <Control-m>          {.m.marks   invoke "Mark/Unmark"}
-    bind . <F2>                 {.m.marks   invoke "Next Mark"}
-    bind . <Control-M>          {.m.marks   invoke "Clear All Marks"}
-    bind . <F8>                 {.m.show    invoke "Scratchpad"}
-    bind . <Control-r>          {.m.options invoke "Read Only"}
-    bind . <Control-w>          {.m.options invoke "Word Wrap"}
-    bind . <F1>                 {.m.help    invoke "About tEdit..."}
+    bind . <Control-o>       {.m.file    invoke "Open..."}
+    bind . <Control-s>       {.m.file    invoke "Save"}
+    bind . <Control-Shift-S> {.m.file    invoke "Save As..."}
+    bind . <F6>              {.m.file    invoke "Recent Files..."}
+    bind . <Control-q>       {.m.file    invoke "Exit"}
+    bind . <Control-Shift-Q> {exit}
+    bind . <Control-z>       {.m.edit    invoke "Undo"}
+    bind . <Control-Shift-Z> {.m.edit    invoke "Redo"}
+    bind . <Control-a>       {.m.edit    invoke "Select All"}
+    bind . <Control-j>       {.m.edit    invoke "Fold Lines"}
+    bind . <Control-J>       {.m.edit    invoke "Unfold All"}
+    bind . <Control-f>       {.m.search  invoke "Search..."}
+    bind . <F3>              {.m.search  invoke "Find Next"}
+    bind . <Control-l>       {.m.search  invoke "Clear Highlight"}
+    bind . <F5>              {.m.marks   invoke "Show Marks..."}
+    bind . <Control-m>       {.m.marks   invoke "Mark/Unmark"}
+    bind . <F2>              {.m.marks   invoke "Next Mark"}
+    bind . <Control-M>       {.m.marks   invoke "Clear All Marks"}
+    bind . <F8>              {.m.show    invoke "Scratchpad"}
+    bind . <Control-r>       {.m.options invoke "Read Only"}
+    bind . <Control-w>       {.m.options invoke "Word Wrap"}
+    bind . <F1>              {.m.help    invoke "About tEdit..."}
+    # make Return and keypad Enter behave the same
+    foreach keysym [list <KP_Enter> <Extended-Return>] {
+        bind . $keysym {event generate %W <Return>}
+    }
 
-    bind .tree  <Return>                    {treeOpenFile %W [%W focus]}
-    bind .tree  <KP_Enter>                  {treeOpenFile %W [%W focus]}
-    bind .tree  <Double-ButtonRelease-1>    {treeOpenFile %W [%W focus]}
-    bind .tree  <<TreeviewOpen>>            {treeShowDirs %W [%W focus]}
+    # treeview widget bindings
+    foreach keysym [list <Return> <Double-ButtonRelease-1>] {
+        bind .tree $keysym {treeOpenFile %W [%W focus]}
+    }
+    bind .tree  <<TreeviewOpen>> {treeShowDirs %W [%W focus]}
 
-    bind .text  <Triple-ButtonRelease-1>    {.m.marks invoke "Mark/Unmark"}
-    bind .text  <3>                         {focus %W; tk_popup .m.edit %X %Y}
-    bind .text  <Control-3>                 {focus %W; tk_popup .m %X %Y}
-    bind .text  <<Modified>>                {setModified %W}
+    # text widget bindings
+    bind .text  <<Modified>>              {setModified %W}
+    bind .text  <Control-ButtonRelease-1> {.m.marks invoke "Mark/Unmark"}
+    bind .text  <3>                       {focus %W; tk_popup .m.edit %X %Y}
+    bind .text  <Control-3>               {focus %W; tk_popup .m %X %Y}
 
-    bind .l_recent  <Return>                    {recentOpen %W}
-    bind .l_recent  <KP_Enter>                  {recentOpen %W}
-    bind .l_recent  <Double-ButtonRelease-1>    {recentOpen %W}
+    # recent file list bindings
+    foreach keysym [list <Return> <Double-ButtonRelease-1>] {
+        bind .l_recent $keysym {recentOpen %W}
+    }
 
-    bind .l_marks   <Return>                    {markSee .text}
-    bind .l_marks   <KP_Enter>                  {markSee .text}
-    bind .l_marks   <Double-ButtonRelease-1>    {markSee .text}
-    bind .l_marks   <Delete>                    {markDelete .text active}
+    # mark list bindings
+    foreach keysym [list <Return> <Double-ButtonRelease-1>] {
+        bind .l_marks $keysym {markSee .text}
+    }
+    bind .l_marks <Delete> {markDelete .text active}
 
-    bind .cb_search     <3>         {focus %W; tk_popup .find_popup %X %Y}
-    bind .cb_search     <Escape>    {.m.search invoke "Search..."}
-    bind .cb_search     <Return>    {.b_findnext invoke}
-    bind .cb_search     <KP_Enter>  {.b_findnext invoke}
-
-    bind .cb_replace    <3>         {focus %W; tk_popup .find_popup %X %Y}
-    bind .cb_replace    <Escape>    {.m.search invoke "Search..."}
+    # search & replace bindings
+    foreach combobox [list .cb_search .cb_replace] {
+        bind $combobox <3>      {focus %W; tk_popup .find_popup %X %Y}
+        bind $combobox <Escape> {.m.search invoke "Search..."}
+    }
+    foreach keysym [list <<ComboboxSelected>> <KeyPress>] {
+        bind .cb_search $keysym {.cb_search configure -style white.TCombobox}
+    }
+    bind .cb_search  <Return> {.b_findnext invoke}
+    bind .cb_replace <Return> {.b_replace invoke}
 }
 
 ################################################################################
