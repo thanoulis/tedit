@@ -140,6 +140,7 @@ namespace eval tEdit {
     variable folds          [list]
     variable hsearch        [list]
     variable hreplace       [list]
+    variable matches        0
     variable theme          default
 }
 
@@ -390,6 +391,8 @@ proc searchText {w what tag} {
     clearHighlight $w $tag
     switch -- $tag {
         "tag_search_all" {
+            searchText $w $what tag_search
+            set tEdit::matches 0
             set position "1.0"
             set begin_time [clock seconds]
             while {1} {
@@ -407,13 +410,14 @@ proc searchText {w what tag} {
                 set position [$w index $position+${n}c]
                 set end_time [clock seconds]
                 if [expr {$end_time - $begin_time} > 5] {
-                    errorMessage "taking too long, terminated"
+                    errorMessage "searching too slow, terminated"
                     break
                 }
+                incr tEdit::matches
             }
         }
         "tag_search" {
-            set command [list $w search $tEdit::reg_exp -count n -- $what insert+2c]
+            set command [list $w search $tEdit::reg_exp -count n -- $what insert+1c]
             if {$tEdit::match_case eq "false"} {
                 set command [linsert $command 2 -nocase]
             }
@@ -437,10 +441,12 @@ proc replaceText {w what with tag} {
     if {$with ni $tEdit:::hreplace} {
         lappend tEdit::hreplace $with
     }
+    if {[$w tag ranges $tag] eq ""} {
+        searchText $w $what $tag
+    }
     if {[$w tag ranges $tag] ne ""} {
         $w replace {*}[$w tag ranges $tag] $with
         searchText $w $what $tag
-        return 0
     } else {
         errorMessage "nothing to replace"
         return 1
@@ -448,15 +454,16 @@ proc replaceText {w what with tag} {
 }
 
 proc replaceAll {w what with tag} {
-    set all 1
+    searchText $w $what tag_search_all
     set begin_time [clock seconds]
-    while {$all} {
-        set all [replaceText $w $what $with $tag]
+    while {$tEdit::matches > 0} {
+        replaceText $w $what $with $tag
         set end_time [clock seconds]
         if [expr {$end_time - $begin_time} > 5] {
-            errorMessage "taking too long, terminated"
+            errorMessage "replacing too slow, terminated"
             break
         }
+        incr tEdit::matches -1
     }
 }
 
