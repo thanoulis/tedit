@@ -105,9 +105,7 @@ proc showScratchpad {w} {
             }
 
             # make Return and keypad Enter behave the same
-            foreach keysym [list <KP_Enter> <Extended-Return>] {
-                bind $w $keysym {event generate %W <Return>}
-            }
+            bind $w <KP_Enter> {event generate %W <Return>}
         }
     }
 }
@@ -147,7 +145,7 @@ namespace eval tEdit {
     variable hsearch        [list]
     variable hreplace       [list]
     variable matches        0
-    variable theme          default
+    variable theme          [ttk::style theme use]
 }
 
 ################################################################################
@@ -855,10 +853,10 @@ proc createMenus {} {
             .m.options add separator
             menu .m.options.themes -tearoff 0
             .m.options add cascade -label "Themes" -underline 0 -menu .m.options.themes
-                foreach theme [ttk::themes] {
+                foreach theme [ttk::style theme names] {
                     .m.options.themes add radiobutton -label $theme \
                         -variable tEdit::theme -value $theme \
-                        -command [list ttk::setTheme $theme]
+                        -command [list ttk::style theme use $theme]
                 }
             .m.options add separator
             menu .m.options.colors -tearoff 0
@@ -1099,9 +1097,7 @@ proc createBindings {} {
     bind . <Control-w>       {.m.options invoke "Word Wrap"}
     bind . <F1>              {.m.help    invoke "About tEdit..."}
     # make Return and keypad Enter behave the same
-    foreach keysym [list <KP_Enter> <Extended-Return>] {
-        bind . $keysym {event generate %W <Return>}
-    }
+    bind . <KP_Enter> {event generate %W <Return>}
 
     # treeview widget bindings
     foreach keysym [list <Return> <Double-ButtonRelease-1>] {
