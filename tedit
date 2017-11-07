@@ -138,7 +138,7 @@ namespace eval tEdit {
     variable error_msg      {}
     variable show_mode      {}
     variable modified       {}
-    variable position       {[1,0]}
+    variable position       {[1:1]}
     variable marks_id       0
     variable marks          [list]
     variable folds          [list]
@@ -154,7 +154,8 @@ namespace eval tEdit {
 proc cursorPosition {w args} {
     if {[lindex $args 0 1] in {insert delete mark}} {
         scan [$w index insert] %d.%d ypos xpos
-        set tEdit::position "\[$ypos,$xpos\]"
+        incr xpos
+        set tEdit::position "\[$ypos:$xpos\]"
     }
 }
 
@@ -168,7 +169,7 @@ proc clearModified {w} {
 }
 
 proc updateGUI {filename} {
-    if {$filename eq ""} {
+    if {$filename eq "newfile"} {
         set tEdit::filename ""
         .m.help entryconfigure "File Details..." -state disabled
         wm title . "tEdit"
@@ -209,13 +210,13 @@ proc askSave {} {
     return 0
 }
 
-proc newFile {} {
+proc newFile {w} {
     if {[askSave] != 0} {return 2}
     if {$tEdit::read_only eq "true"} {.m.options invoke "Read Only"}
-    .text delete 1.0 end
-    updateGUI ""
-    markDelete .text "all"
-    clearModified .text
+    $w delete 1.0 end
+    updateGUI newfile
+    markDelete $w "all"
+    clearModified $w
 }
 
 proc openFileDialog {} {
@@ -383,8 +384,7 @@ proc unFoldLines {w which} {
     }
 }
 
-proc searchText {w what tag} {
-    .cb_search configure -style white.TCombobox
+proc searchText {w what {direction -forwards}} {
     if {$what eq ""} {
         errorMessage "nothing to search for"
         return 1
@@ -392,81 +392,74 @@ proc searchText {w what tag} {
     if {$what ni $tEdit::hsearch} {
         lappend tEdit::hsearch $what
     }
-    clearHighlight $w $tag
-    switch -- $tag {
-        "tag_search_all" {
-            searchText $w $what tag_search
-            set tEdit::matches 0
-            set position "1.0"
-            set begin_time [clock seconds]
-            while {1} {
-                set command [list $w search $tEdit::reg_exp -count n -- $what $position end]
-                if {$tEdit::match_case eq "false"} {
-                    set command [linsert $command 2 -nocase]
-                }
-                if [catch {set position [{*}$command]} msg] {
-                    .cb_search configure -style red.TCombobox
-                    errorMessage [lindex [split $msg :] 1]
-                    break
-                }
-                if {$position eq ""} {break}
-                $w tag add $tag $position $position+${n}c
-                set position [$w index $position+${n}c]
-                set end_time [clock seconds]
-                if [expr {$end_time - $begin_time} > 5] {
-                    errorMessage "searching too slow, terminated"
-                    break
-                }
-                incr tEdit::matches
-            }
-        }
-        "tag_search" {
-            set command [list $w search $tEdit::reg_exp -count n -- $what insert+1c]
-            if {$tEdit::match_case eq "false"} {
-                set command [linsert $command 2 -nocase]
-            }
-            if [catch {set position [{*}$command]} msg] {
-                .cb_search configure -style red.TCombobox
-                errorMessage [lindex [split $msg :] 1]
-                return 1
-            }
-            if {$position eq ""} {
-                .cb_search configure -style red.TCombobox
-                return 1
-            }
-            $w tag add $tag $position $position+${n}c
-            $w mark set insert $position
-            $w see $position
-        }
+    clearHighlight $w tag_search
+    set command [list $w search $tEdit::reg_exp $direction -count n -- $what]
+    if {$direction eq "-backwards"} {
+        set command [linsert $command end {insert-1char}]
+    } else {
+        set command [linsert $command end {insert+1char}]
     }
+    if {$tEdit::match_case eq "false"} {
+        set command [linsert $command 2 -nocase]
+    }
+    if [catch {set position [{*}$command]} msg] {
+        .cb_search configure -style red.TCombobox
+        errorMessage [lindex [split $msg :] 1]
+        return 1
+    }
+    if {$position eq ""} {
+        .cb_search configure -style red.TCombobox
+        return 1
+    }
+    $w tag add tag_search $position $position+${n}c
+    $w mark set insert $position
+    $w see $position
 }
 
-proc replaceText {w what with tag} {
+proc searchAll {w what} {
+    if {$what eq ""} {
+        errorMessage "nothing to search for"
+        return 1
+    }
+    set tEdit::matches 0
+    set command [list $w search $tEdit::reg_exp -all -count n -- $what 1.0 end]
+    if {$tEdit::match_case eq "false"} {
+        set command [linsert $command 2 -nocase]
+    }
+    if [catch {set positions [{*}$command]} msg] {
+        .cb_search configure -style red.TCombobox
+        errorMessage [lindex [split $msg :] 1]
+        return 1
+    }
+    if {$positions eq ""} {return 1}
+    set i 0
+    foreach position $positions {
+        $w tag add tag_search_all $position $position+[lindex $n $i]c
+        incr i
+    }
+    set tEdit::matches [llength $n]
+}
+
+proc replaceText {w what with} {
     if {$with ni $tEdit:::hreplace} {
         lappend tEdit::hreplace $with
     }
-    if {[$w tag ranges $tag] eq ""} {
-        searchText $w $what $tag
+    if {[$w tag ranges tag_search] eq ""} {
+        searchText $w $what
     }
-    if {[$w tag ranges $tag] ne ""} {
-        $w replace {*}[$w tag ranges $tag] $with
-        searchText $w $what $tag
+    if {[$w tag ranges tag_search] ne ""} {
+        $w replace {*}[$w tag ranges tag_search] $with
+        searchText $w $what
     } else {
         errorMessage "nothing to replace"
         return 1
     }
 }
 
-proc replaceAll {w what with tag} {
-    searchText $w $what tag_search_all
-    set begin_time [clock seconds]
+proc replaceAll {w what with} {
+    searchAll $w $what
     while {$tEdit::matches > 0} {
-        replaceText $w $what $with $tag
-        set end_time [clock seconds]
-        if [expr {$end_time - $begin_time} > 5] {
-            errorMessage "replacing too slow, terminated"
-            break
-        }
+        replaceText $w $what $with
         incr tEdit::matches -1
     }
 }
@@ -484,7 +477,7 @@ proc markLine {w} {
     set mark [lsearch -inline -all -glob [$w tag names $linenum.0] "Mark*"]
     if {$mark eq ""} {
         if {[$w index $linenum.0] eq [$w index $linenum.end]} {
-            errorMessage "cannot mark line: line is empty"
+            errorMessage "cannot mark: empty line"
             return 1
         }
         set mark "Mark[incr tEdit::marks_id]"
@@ -574,8 +567,8 @@ proc treeShowDirs {w node} {
 
 proc treePWD {w} {
     foreach dir [lsort -dictionary [pwd]] {
-        treeShowDirs $w [$w insert {} end -text $dir \
-            -values [list $dir directory]]
+        treeShowDirs $w [$w insert {} end \
+            -text [file tail $dir] -values [list $dir directory]]
     }
 }
 
@@ -741,7 +734,7 @@ proc createMenus {} {
         menu .m.file -tearoff 0
         .m add cascade -label "File" -underline 0 -menu .m.file
             .m.file add command -label "New" -underline 0 \
-                -command {newFile}
+                -command {newFile .text}
             .m.file add command -label "Open..." -underline 0 \
                 -accelerator "Control+O" -command {openFileDialog}
             .m.file add command -label "Save" -underline 0 \
@@ -759,25 +752,25 @@ proc createMenus {} {
         menu .m.edit -tearoff 0
         .m add cascade -label "Edit" -underline 0 -menu .m.edit
             .m.edit add command -label "Undo" -underline 0 \
-                -accelerator "Control+Z" -command [list undoRedo .text "undo"]
+                -accelerator "Control+Z" -command {undoRedo .text undo}
             .m.edit add command -label "Redo" -underline 0 \
-                -accelerator "Control+Shift+Z" -command [list undoRedo .text "redo"]
+                -accelerator "Control+Shift+Z" -command {undoRedo .text redo}
             .m.edit add separator
             .m.edit add command -label "Cut" -underline 2 \
-                -accelerator "Control+X" -command [list tk_textCut .text]
+                -accelerator "Control+X" -command {tk_textCut .text}
             .m.edit add command -label "Copy" -underline 0 \
-                -accelerator "Control+C" -command [list tk_textCopy .text]
+                -accelerator "Control+C" -command {tk_textCopy .text}
             .m.edit add command -label "Paste" -underline 0 \
-                -accelerator "Control+V" -command [list tk_textPaste .text]
+                -accelerator "Control+V" -command {tk_textPaste .text}
             .m.edit add separator
             .m.edit add command -label "Select All" -underline 7 \
-                -accelerator "Control+A" -command [list selectAll .text]
+                -accelerator "Control+A" -command {selectAll .text}
             .m.edit add separator
             .m.edit add command -label "Fold Lines" -underline 0 \
-                -accelerator "Control+J" -command [list foldLines .text sel]
+                -accelerator "Control+J" -command {foldLines .text sel}
             .m.edit add command -label "Unfold All" -underline 1 \
                 -accelerator "Control+Shift+J" -state disabled \
-                -command [list unFoldLines .text "all"]
+                -command {unFoldLines .text all}
         menu .m.search -tearoff 0
         .m add cascade -label "Search" -underline 0 -menu .m.search
             .m.search add checkbutton -label "Search..." -underline 0 \
@@ -786,19 +779,21 @@ proc createMenus {} {
                 -command {toggleView .f_search $tEdit::show_search}
             .m.search add command -label "Find Next" -underline 5 \
                 -accelerator "F3" -command {.b_findnext invoke}
+            .m.search add command -label "Find Prev" -underline 5 \
+                -accelerator "Shift+F3" -command {.b_findprev invoke}
             .m.search add command -label "Clear Highlight" -underline 0 \
                 -accelerator "Control+L" \
-                -command [list clearHighlight .text {tag_search tag_search_all}]
+                -command {clearHighlight .text [list tag_search tag_search_all]}
         menu .m.marks -tearoff 0
         .m add cascade -label "Marks" -underline 0 -menu .m.marks
             .m.marks add checkbutton -label "Show Marks..." -underline 0 \
-                -accelerator "F5" \
+                -accelerator "Shift+F5" \
                 -variable tEdit::show_marks -onvalue "true" -offvalue "false" \
                 -command {toggleView .lf_marks $tEdit::show_marks}
             .m.marks add command -label "Mark/Unmark" -underline 0 \
                 -accelerator "Control+M" -command [list markLine .text]
             .m.marks add command -label "Next Mark" -underline 0 \
-                -accelerator "F2" -state disabled \
+                -accelerator "F5" -state disabled \
                 -command [list markNext .text]
             .m.marks add command -label "Clear All Marks" -underline 0 \
                 -accelerator "Control+Shift+M" -state disabled \
@@ -806,6 +801,7 @@ proc createMenus {} {
         menu .m.show -tearoff 0
         .m add cascade -label "Show" -underline 3 -menu .m.show
             .m.show add checkbutton -label "DirTree" -underline 0 \
+                -accelerator "F2" \
                 -variable tEdit::show_dirtree -onvalue "true" -offvalue "false" \
                 -command {toggleDirTree}
             .m.show add separator
@@ -963,10 +959,16 @@ proc createWidgets {} {
                     -postcommand {.cb_search configure -values $tEdit::hsearch}
                 ttk::button .b_findnext -text "Find Next" -width 9 \
                     -underline 5 -takefocus 0 \
-                    -command {searchText .text $tEdit::search tag_search}
-                ttk::button .b_findall -text "Find All" -width 9 \
-                    -underline 0 -takefocus 0 \
-                    -command {searchText .text $tEdit::search tag_search_all}
+                    -command {
+                        searchAll .text $tEdit::search
+                        searchText .text $tEdit::search
+                    }
+                ttk::button .b_findprev -text "Find Prev" -width 9 \
+                    -underline 5 -takefocus 0 \
+                    -command {
+                        searchAll .text $tEdit::search
+                        searchText .text $tEdit::search -backwards
+                    }
                 ttk::checkbutton .ck_matchcase -text "Match Case" \
                     -underline 0 -takefocus 0 \
                     -variable tEdit::match_case -onvalue "true" -offvalue "false"
@@ -980,7 +982,7 @@ proc createWidgets {} {
                 # grid them all in the search labelframe
                 grid .cb_search     -in .lf_search -row 0 -column 0
                 grid .b_findnext    -in .lf_search -row 0 -column 1
-                grid .b_findall     -in .lf_search -row 0 -column 2
+                grid .b_findprev    -in .lf_search -row 0 -column 2
                 grid .ck_matchcase  -in .lf_search -row 0 -column 3
                 grid .ck_regexp     -in .lf_search -row 0 -column 4
                 grid .ck_replace    -in .lf_search -row 0 -column 5 -sticky e
@@ -992,10 +994,10 @@ proc createWidgets {} {
                     -postcommand {.cb_replace configure -values $tEdit::hreplace}
                 ttk::button .b_replace -text "Replace" -width 9 \
                     -underline 0 -takefocus 0 \
-                    -command {replaceText .text $tEdit::search $tEdit::replace tag_search}
+                    -command {replaceText .text $tEdit::search $tEdit::replace}
                 ttk::button .b_replaceall -text "All" -width 9 \
                     -underline 0 -takefocus 0 \
-                    -command {replaceAll .text $tEdit::search $tEdit::replace tag_search}
+                    -command {replaceAll .text $tEdit::search $tEdit::replace}
                 # grid them all in the replace labelframe
                 grid .cb_replace    -in .lf_replace -row 0 -column 0
                 grid .b_replace     -in .lf_replace -row 0 -column 1
@@ -1010,7 +1012,7 @@ proc createWidgets {} {
         grid .text      -in .right_pane -row 0 -column 0 -sticky news
         grid .ysb_text  -in .right_pane -row 0 -column 1 -sticky ns
         grid .lf_marks  -in .right_pane -row 0 -column 2 -sticky ns
-        grid .xsb_text  -in .right_pane -row 1 -column 0 -sticky we -columnspan 2
+        grid .xsb_text  -in .right_pane -row 1 -column 0 -sticky we -columnspan 1
         grid .f_search  -in .right_pane -row 2 -column 0 -sticky we -columnspan 3
         grid rowconfigure       .right_pane .text -weight 1
         grid columnconfigure    .right_pane .text -weight 1
@@ -1087,11 +1089,13 @@ proc createBindings {} {
     bind . <Control-J>       {.m.edit    invoke "Unfold All"}
     bind . <Control-f>       {.m.search  invoke "Search..."}
     bind . <F3>              {.m.search  invoke "Find Next"}
+    bind . <Shift-F3>        {.m.search  invoke "Find Prev"}
     bind . <Control-l>       {.m.search  invoke "Clear Highlight"}
-    bind . <F5>              {.m.marks   invoke "Show Marks..."}
+    bind . <Shift-F5>        {.m.marks   invoke "Show Marks..."}
     bind . <Control-m>       {.m.marks   invoke "Mark/Unmark"}
-    bind . <F2>              {.m.marks   invoke "Next Mark"}
+    bind . <F5>              {.m.marks   invoke "Next Mark"}
     bind . <Control-M>       {.m.marks   invoke "Clear All Marks"}
+    bind . <F2>              {.m.show    invoke "DirTree"}
     bind . <F8>              {.m.show    invoke "Scratchpad"}
     bind . <Control-r>       {.m.options invoke "Read Only"}
     bind . <Control-w>       {.m.options invoke "Word Wrap"}
@@ -1128,7 +1132,10 @@ proc createBindings {} {
         bind $combobox <Escape> {.m.search invoke "Search..."}
     }
     foreach keysym [list <<ComboboxSelected>> <KeyPress>] {
-        bind .cb_search $keysym {.cb_search configure -style white.TCombobox}
+        bind .cb_search $keysym {
+            .m.search invoke "Clear Highlight"
+            .cb_search configure -style white.TCombobox
+        }
     }
     bind .cb_search  <Return> {.b_findnext invoke}
     bind .cb_replace <Return> {.b_replace invoke}
