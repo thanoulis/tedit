@@ -12,6 +12,7 @@ Features:
 * Safe Mode (read only)
 * Search/Replace supporting *Regular Expressions*
 * Tabbed ScratchPad
+* NerdTree like File Browser
 * Customizable Colors and Fonts
 * Runs in GNU/Linux, MS-Windows and Unix (MacOS not tested)
 
