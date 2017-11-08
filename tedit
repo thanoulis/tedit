@@ -15,20 +15,20 @@ namespace eval Scratchpad {
 proc createScratchpadMenu {w} {
     menu [set Scratchpad::menu $w.popup_menu] -tearoff 0
         $Scratchpad::menu add command -label "New Tab" \
-            -underline 0 -accelerator "Control+T" \
+            -underline 0 -accelerator "Ctrl+T" \
             -command {newScratchpadTab $Scratchpad::notebook $Scratchpad::count}
         $Scratchpad::menu add command -label "Close Tab" \
-            -underline 1  -accelerator "Control+F4" -state disabled \
+            -underline 1  -accelerator "Ctrl+F4" -state disabled \
             -command {closeScratchpadTab $Scratchpad::notebook}
         $Scratchpad::menu add separator
         $Scratchpad::menu add command -label "Cut" \
-            -underline 2 -accelerator "Control+X" \
+            -underline 2 -accelerator "Ctrl+X" \
             -command {event generate [focus] <<Cut>>}
         $Scratchpad::menu add command -label "Copy" \
-            -underline 0 -accelerator "Control+C" \
+            -underline 0 -accelerator "Ctrl+C" \
             -command {event generate [focus] <<Copy>>}
         $Scratchpad::menu add command -label "Paste" \
-            -underline 0 -accelerator "Control+V" \
+            -underline 0 -accelerator "Ctrl+V" \
             -command {event generate [focus] <<Paste>>}
         $Scratchpad::menu add separator
         $Scratchpad::menu add command -label "Hide Scratchpad" \
@@ -735,11 +735,11 @@ proc createMenus {} {
             .m.file add command -label "New" -underline 0 \
                 -command {newFile .text}
             .m.file add command -label "Open..." -underline 0 \
-                -accelerator "Control+O" -command {openFileDialog}
+                -accelerator "Ctrl+O" -command {openFileDialog}
             .m.file add command -label "Save" -underline 0 \
-                -accelerator "Control+S" -command {saveFile $tEdit::filename}
+                -accelerator "Ctrl+S" -command {saveFile $tEdit::filename}
             .m.file add command -label "Save As..." -underline 5 \
-                -accelerator "Control+Shift+S" -command {saveAs}
+                -accelerator "Ctrl+Shift+S" -command {saveAs}
             .m.file add separator
             .m.file add checkbutton -label "Recent Files..." -underline 0 \
                 -accelerator "F6" -state "disabled" \
@@ -747,33 +747,33 @@ proc createMenus {} {
                 -command {toggleView .lf_recent $tEdit::show_recent}
             .m.file add separator
             .m.file add command -label "Exit" -underline 1 \
-                -accelerator "Control+Q" -command {exitCommand}
+                -accelerator "Ctrl+Q" -command {exitCommand}
         menu .m.edit -tearoff 0
         .m add cascade -label "Edit" -underline 0 -menu .m.edit
             .m.edit add command -label "Undo" -underline 0 \
-                -accelerator "Control+Z" -command {undoRedo .text undo}
+                -accelerator "Ctrl+Z" -command {undoRedo .text undo}
             .m.edit add command -label "Redo" -underline 0 \
-                -accelerator "Control+Shift+Z" -command {undoRedo .text redo}
+                -accelerator "Ctrl+Shift+Z" -command {undoRedo .text redo}
             .m.edit add separator
             .m.edit add command -label "Cut" -underline 2 \
-                -accelerator "Control+X" -command {tk_textCut .text}
+                -accelerator "Ctrl+X" -command {tk_textCut .text}
             .m.edit add command -label "Copy" -underline 0 \
-                -accelerator "Control+C" -command {tk_textCopy .text}
+                -accelerator "Ctrl+C" -command {tk_textCopy .text}
             .m.edit add command -label "Paste" -underline 0 \
-                -accelerator "Control+V" -command {tk_textPaste .text}
+                -accelerator "Ctrl+V" -command {tk_textPaste .text}
             .m.edit add separator
             .m.edit add command -label "Select All" -underline 7 \
-                -accelerator "Control+A" -command {selectAll .text}
+                -accelerator "Ctrl+A" -command {selectAll .text}
             .m.edit add separator
             .m.edit add command -label "Fold Lines" -underline 0 \
-                -accelerator "Control+J" -command {foldLines .text sel}
+                -accelerator "Ctrl+J" -command {foldLines .text sel}
             .m.edit add command -label "Unfold All" -underline 1 \
-                -accelerator "Control+Shift+J" -state disabled \
+                -accelerator "Ctrl+Shift+J" -state disabled \
                 -command {unFoldLines .text all}
         menu .m.search -tearoff 0
         .m add cascade -label "Search" -underline 0 -menu .m.search
             .m.search add checkbutton -label "Search..." -underline 0 \
-                -accelerator "Control+F" \
+                -accelerator "Ctrl+F" \
                 -variable tEdit::show_search -onvalue "true" -offvalue "false" \
                 -command {toggleView .f_search $tEdit::show_search}
             .m.search add command -label "Find Next" -underline 5 \
@@ -781,7 +781,7 @@ proc createMenus {} {
             .m.search add command -label "Find Prev" -underline 5 \
                 -accelerator "Shift+F3" -command {.b_findprev invoke}
             .m.search add command -label "Clear Highlight" -underline 0 \
-                -accelerator "Control+L" \
+                -accelerator "Ctrl+L" \
                 -command {clearHighlight .text [list tag_search tag_search_all]}
         menu .m.marks -tearoff 0
         .m add cascade -label "Marks" -underline 0 -menu .m.marks
@@ -790,12 +790,12 @@ proc createMenus {} {
                 -variable tEdit::show_marks -onvalue "true" -offvalue "false" \
                 -command {toggleView .lf_marks $tEdit::show_marks}
             .m.marks add command -label "Mark/Unmark" -underline 0 \
-                -accelerator "Control+M" -command [list markLine .text]
+                -accelerator "Ctrl+M" -command [list markLine .text]
             .m.marks add command -label "Next Mark" -underline 0 \
                 -accelerator "F5" -state disabled \
                 -command [list markNext .text]
             .m.marks add command -label "Clear All Marks" -underline 0 \
-                -accelerator "Control+Shift+M" -state disabled \
+                -accelerator "Ctrl+Shift+M" -state disabled \
                 -command [list markDelete .text "all"]
         menu .m.show -tearoff 0
         .m add cascade -label "Show" -underline 3 -menu .m.show
@@ -824,11 +824,11 @@ proc createMenus {} {
         menu .m.options -tearoff 0
         .m add cascade -label "Options" -underline 0 -menu .m.options
             .m.options add checkbutton -label "Read Only" -underline 0 \
-                -accelerator "Control+R" \
+                -accelerator "Ctrl+R" \
                 -variable tEdit::read_only -onvalue "true" -offvalue "false" \
                 -command {toggleSafeMode}
             .m.options add checkbutton -label "Word Wrap" -underline 5 \
-                -accelerator "Control+W" \
+                -accelerator "Ctrl+W" \
                 -variable tEdit::word_wrap -onvalue "word" -offvalue "none" \
                 -command {.text configure -wrap $tEdit::word_wrap}
             .m.options add separator
@@ -887,13 +887,13 @@ proc createMenus {} {
 
     menu .find_popup -tearoff 0
         .find_popup add command -label "Cut" \
-            -underline 2 -accelerator "Control+X" \
+            -underline 2 -accelerator "Ctrl+X" \
             -command {event generate [focus] <<Cut>>}
         .find_popup add command -label "Copy" \
-            -underline 0 -accelerator "Control+C" \
+            -underline 0 -accelerator "Ctrl+C" \
             -command {event generate [focus] <<Copy>>}
         .find_popup add command -label "Paste" \
-            -underline 0 -accelerator "Control+V" \
+            -underline 0 -accelerator "Ctrl+V" \
             -command {event generate [focus] <<Paste>>}
 }
 
