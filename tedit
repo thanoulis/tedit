@@ -58,7 +58,7 @@ proc newScratchpadTab {w count} {
     grid rowconfigure    $scratchpadTab(frame) $scratchpadTab(text) -weight 1
     grid columnconfigure $scratchpadTab(frame) $scratchpadTab(text) -weight 1
 
-    $w add $scratchpadTab(frame) -text "Scratch $count"
+    $w add $scratchpadTab(frame) -text "Scratch $count" -underline 8
     focus $scratchpadTab(text)
     incr Scratchpad::count
 
@@ -115,7 +115,7 @@ proc showScratchpad {w} {
 # TEDIT
 #
 namespace eval tEdit {
-    variable show_dirtree   false
+    variable show_browser   false
     variable show_menubar   .m
     variable show_statusbar true
     variable show_yscroll   true
@@ -548,44 +548,43 @@ proc markDelete {w which} {
     }
 }
 
-proc treeShowDirs {w node} {
-    if {[$w set $node type] eq "file"} {return 1}
+proc populateBrowser {w node} {
     set path [$w set $node fullpath]
     $w delete [$w children $node]
+    if [catch {glob -nocomplain -dir $path *} msg] {
+        errorMessage [lindex [split $msg :] 1]
+        return 1
+    }
     foreach f [lsort -dictionary [glob -nocomplain -dir $path *]] {
         set type [file type $f]
-        set id [$w insert $node end -text [file tail $f] \
-            -values [list $f $type]]
-
+        set id [$w insert $node end -text [file tail $f] -values [list $f $type]]
         if {$type eq "directory"} {
-            $w insert $id 0 -text dummy ;
+            $w insert $id 0
             $w item $id -text [file tail $f]/
         }
     }
-    $w set $node type processedDirectory
 }
 
-proc treePWD {w} {
-    foreach dir [lsort -dictionary [pwd]] {
-        treeShowDirs $w [$w insert {} end \
-            -text [file tail $dir] -values [list $dir directory]]
+proc startBrowser {w} {
+    foreach dir [lsort -dictionary [file volumes]] {
+        populateBrowser $w [$w insert {} end -text $dir -values [list $dir directory]]
     }
 }
 
-proc treeOpenFile {w node} {
+proc openfileBrowser {w node} {
     if {[$w set $node type] eq "file"} {
         set path [$w set $node fullpath]
         openFile $path
     } else {
-        treeShowDirs $w $node
+        populateBrowser $w $node
     }
 }
 
-proc toggleDirTree {} {
-    if {$tEdit::show_dirtree eq "true"} {
-        .pane insert 0 .tree
+proc toggleBrowser {w} {
+    if {$tEdit::show_browser eq "true"} {
+        .pane insert 0 $w
     } else {
-        .pane forget .tree
+        .pane forget $w
     }
 }
 
@@ -800,10 +799,10 @@ proc createMenus {} {
                 -command [list markDelete .text "all"]
         menu .m.show -tearoff 0
         .m add cascade -label "Show" -underline 3 -menu .m.show
-            .m.show add checkbutton -label "DirTree" -underline 0 \
+            .m.show add checkbutton -label "File Browser" -underline 0 \
                 -accelerator "F2" \
-                -variable tEdit::show_dirtree -onvalue "true" -offvalue "false" \
-                -command {toggleDirTree}
+                -variable tEdit::show_browser -onvalue "true" -offvalue "false" \
+                -command {toggleBrowser .tree}
             .m.show add separator
             .m.show add checkbutton -label "Menu Bar" -underline 0 \
                 -variable tEdit::show_menubar -onvalue ".m" -offvalue "" \
@@ -922,6 +921,7 @@ proc createWidgets {} {
         ttk::treeview .tree -selectmode browse \
             -columns {fullpath type} -displaycolumns {} \
             -yscroll {.ysb_tree set}
+        .tree heading {#0} -anchor c -text "File Browser"
         ttk::scrollbar .ysb_tree -orient vertical -command {.tree yview}
         # grid treeview and its scrollbars in the left pane frame
         grid .tree      -in .left_pane -row 0 -column 0 -sticky news
@@ -1095,7 +1095,7 @@ proc createBindings {} {
     bind . <Control-m>       {.m.marks   invoke "Mark/Unmark"}
     bind . <F5>              {.m.marks   invoke "Next Mark"}
     bind . <Control-M>       {.m.marks   invoke "Clear All Marks"}
-    bind . <F2>              {.m.show    invoke "DirTree"}
+    bind . <F2>              {.m.show    invoke "File Browser"}
     bind . <F8>              {.m.show    invoke "Scratchpad"}
     bind . <Control-r>       {.m.options invoke "Read Only"}
     bind . <Control-w>       {.m.options invoke "Word Wrap"}
@@ -1105,9 +1105,9 @@ proc createBindings {} {
 
     # treeview widget bindings
     foreach keysym [list <Return> <Double-ButtonRelease-1>] {
-        bind .tree $keysym {treeOpenFile %W [%W focus]}
+        bind .tree $keysym {openfileBrowser %W [%W focus]}
     }
-    bind .tree  <<TreeviewOpen>> {treeShowDirs %W [%W focus]}
+    bind .tree  <<TreeviewOpen>> {populateBrowser %W [%W focus]}
 
     # text widget bindings
     bind .text  <<Modified>>              {setModified %W}
@@ -1147,7 +1147,7 @@ proc createBindings {} {
 createMenus
 createWidgets
 createBindings
-treePWD .tree
+startBrowser .tree
 setTabstop .text $tEdit::tabstop
 focus .text
 
