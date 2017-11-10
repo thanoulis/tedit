@@ -146,6 +146,7 @@ namespace eval tEdit {
     variable hreplace       [list]
     variable matches        0
     variable theme          [ttk::style theme use]
+    variable colors         default
 }
 
 ################################################################################
@@ -192,7 +193,7 @@ proc askSave {} {
             -type yesnocancel -default yes \
             -message "File has changed!" -detail "Save changes?"]
         switch -- $answer {
-            "yes" {
+            yes {
                 if {$tEdit::filename eq ""} {
                     if {[saveFileDialog] == 0} {
                         return [saveFile $tEdit::savename]
@@ -203,8 +204,8 @@ proc askSave {} {
                     return [saveFile $tEdit::filename]
                 }
             }
-            "no" {return 0}
-            "cancel" {return 2}
+            no {return 0}
+            cancel {return 2}
         }
     }
     return 0
@@ -365,8 +366,8 @@ proc foldLines {w tag} {
 
 proc unFoldLines {w which} {
     switch -- $which {
-        ""  {return 2}
-        "all" {
+        {}  {return 2}
+        all {
             foreach fold $tEdit::folds {
                 $w tag configure $fold -elide "false"
                 destroy $fold
@@ -523,14 +524,14 @@ proc markNext {w} {
 
 proc markDelete {w which} {
     switch -- $which {
-        "all" {
+        all {
             foreach mark $tEdit::marks {
                 $w mark unset $mark
                 $w tag delete $mark
             }
             set tEdit::marks [list]
         }
-        "active" {
+        active {
             set mark [.l_marks get active]
             $w mark unset $mark
             $w tag delete $mark
@@ -648,34 +649,67 @@ proc setFont {w tabstop} {
     $w configure -tabs "[expr {$tabstop * [font measure [$w cget -font] 0]}] left"
 }
 
+proc selectColors {w colors} {
+    switch -- $colors {
+        dark {
+            array set color [list {cursor}     {#ffffff} \
+                                  {highlight}  {#0000ff} \
+                                  {foreground} {#ffffff} \
+                                  {background} {#000000}]
+        }
+        gray {
+            array set color [list {cursor}     {#d6d6d6} \
+                                  {highlight}  {#000000} \
+                                  {foreground} {#d6d6d6} \
+                                  {background} {#4e4e4e}]
+        }
+        green {
+            array set color [list {cursor}     {#00ff00} \
+                                  {highlight}  {#0000ff} \
+                                  {foreground} {#00ff00} \
+                                  {background} {#000000}]
+        }
+        orange {
+            array set color [list {cursor}     {#000000} \
+                                  {highlight}  {#ff0000} \
+                                  {foreground} {#000000} \
+                                  {background} {#ffaa00}]
+        }
+        default {
+            array set color [list {cursor}     {#000000} \
+                                  {highlight}  {#ffff00} \
+                                  {foreground} {#000000} \
+                                  {background} {#ffffff}]
+        }
+    }
+
+    $w configure -insertbackground $color(cursor)
+    $w configure -foreground $color(foreground)
+    $w configure -background $color(background)
+    $w tag configure tag_search -foreground $color(highlight) -background [$w cget -foreground]
+    $w tag configure tag_search_all -foreground [$w cget -foreground] -background $color(highlight)
+}
+
 proc setColor {w which} {
     switch -- $which {
-        "cursor" {
-            set color [tk_chooseColor -title "Set $which color" \
+        cursor {
+            set color [tk_chooseColor -title "Select $which color" \
                 -initialcolor [$w cget -insertbackground]]
             if {$color eq ""} {return 2}
             $w configure -insertbackground $color
         }
-        "search" {
-            set color [tk_chooseColor -title "Set $which color" \
+        highlight {
+            set color [tk_chooseColor -title "Select $which color" \
                 -initialcolor [$w tag cget tag_search_all -background]]
             if {$color eq ""} {return 2}
-            $w tag configure tag_search \
-                -foreground $color -background [$w cget -foreground]
-            $w tag configure tag_search_all \
-                -foreground [$w cget -foreground] -background $color
+            $w tag configure tag_search -foreground $color -background [$w cget -foreground]
+            $w tag configure tag_search_all -foreground [$w cget -foreground] -background $color
         }
         default {
-            set color [tk_chooseColor -title "Set $which color" \
+            set color [tk_chooseColor -title "Select $which color" \
                 -initialcolor [$w cget -$which]]
             if {$color eq ""} {return 2}
-            foreach widget [list $w .l_recent .l_marks] {
-                $widget configure -$which $color
-                $widget configure -selectbackground [$widget cget -foreground]
-                $widget configure -selectforeground [$widget cget -background]
-            }
-            $w tag configure tag_search     -background [$w cget -foreground]
-            $w tag configure tag_search_all -foreground [$w cget -foreground]
+            $w configure -$which $color
         }
     }
 }
@@ -846,6 +880,25 @@ proc createMenus {} {
                         -command {setSpacing .text $tEdit::spacing}
                 }
             .m.options add separator
+            menu .m.options.colors -tearoff 0
+            .m.options add cascade -label "Colors" -underline 0 -menu .m.options.colors
+                foreach i [list default orange green gray dark] {
+                    .m.options.colors add radiobutton -label $i \
+                    -variable tEdit::colors -value $i \
+                    -command {selectColors .text $tEdit::colors}
+                }
+                .m.options.colors add separator
+                menu .m.options.colors.custom -tearoff 0
+                .m.options.colors add cascade -label "Custom" -underline 0 -menu .m.options.colors.custom
+                    .m.options.colors.custom add command -label "Cursor..." -underline 0 \
+                        -command {setColor .text "cursor"}
+                    .m.options.colors.custom add command -label "Highlight..." -underline 0 \
+                        -command {setColor .text "highlight"}
+                    .m.options.colors.custom add command -label "Foreground..." -underline 0 \
+                        -command {setColor .text "foreground"}
+                    .m.options.colors.custom add command -label "Background..." -underline 0 \
+                        -command {setColor .text "background"}
+            .m.options add separator
             menu .m.options.themes -tearoff 0
             .m.options add cascade -label "Themes" -underline 0 -menu .m.options.themes
                 foreach theme [ttk::style theme names] {
@@ -853,17 +906,6 @@ proc createMenus {} {
                         -variable tEdit::theme -value $theme \
                         -command [list ttk::style theme use $theme]
                 }
-            .m.options add separator
-            menu .m.options.colors -tearoff 0
-            .m.options add cascade -label "Colors" -underline 0 -menu .m.options.colors
-                .m.options.colors add command -label "Cursor Color..." -underline 0 \
-                    -command {setColor .text "cursor"}
-                .m.options.colors add command -label "Search Color..." -underline 0 \
-                    -command {setColor .text "search"}
-                .m.options.colors add command -label "Foreground Color..." -underline 0 \
-                    -command {setColor .text "foreground"}
-                .m.options.colors add command -label "Background Color..." -underline 0 \
-                    -command {setColor .text "background"}
             .m.options add separator
             menu .m.options.tabstop -tearoff 0
             .m.options add cascade -label "Tab Stops" -underline 0 -menu .m.options.tabstop
@@ -944,8 +986,8 @@ proc createWidgets {} {
             -tabstyle wordprocessor \
             -blockcursor false -insertunfocussed hollow
         # search tags management and basic colors
-        .text tag configure tag_search     -background black  -foreground yellow
-        .text tag configure tag_search_all -background yellow -foreground black
+        .text tag configure tag_search     -foreground yellow -background black
+        .text tag configure tag_search_all -foreground black  -background yellow
         .text tag raise tag_search
         .text tag lower tag_search_all tag_search
 
