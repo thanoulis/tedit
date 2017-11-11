@@ -139,8 +139,8 @@ namespace eval tEdit {
     variable show_mode      {}
     variable modified       {}
     variable position       {[1:1]}
-    variable marks_id       0
     variable marks          [list]
+    variable marks_count    0
     variable folds          [list]
     variable hsearch        [list]
     variable hreplace       [list]
@@ -153,23 +153,16 @@ namespace eval tEdit {
 # PROCEDURES
 #
 proc cursorPosition {w args} {
-    if {[lindex $args 0 1] in {insert delete mark}} {
-        scan [$w index insert] %d.%d ypos xpos
-        incr xpos
-        set tEdit::position "\[$ypos:$xpos\]"
-    }
+    scan [$w index insert] %d.%d ypos xpos
+    incr xpos
+    set tEdit::position "\[$ypos:$xpos\]"
 }
 
 proc setModified {w} {
     set tEdit::modified [expr {[$w edit modified] ? {[Modified]} : ""}]
 }
 
-proc clearModified {w} {
-    $w edit reset
-    $w edit modified 0
-}
-
-proc updateGUI {filename} {
+proc updateGUI {w filename} {
     if {$filename eq "newfile"} {
         set tEdit::filename ""
         .m.help entryconfigure "File Details..." -state disabled
@@ -180,6 +173,8 @@ proc updateGUI {filename} {
         wm title . "$filename - tEdit"
         recentAdd $filename
     }
+    $w edit reset
+    $w edit modified 0
 }
 
 proc errorMessage {msg} {
@@ -187,7 +182,7 @@ proc errorMessage {msg} {
     after 2000 {set tEdit::error_msg ""}
 }
 
-proc askSave {} {
+proc askSave {w} {
     if {$tEdit::modified ne "" && $tEdit::read_only eq "false"} {
         set answer [tk_messageBox -title "Save file?" -icon warning \
             -type yesnocancel -default yes \
@@ -196,12 +191,12 @@ proc askSave {} {
             yes {
                 if {$tEdit::filename eq ""} {
                     if {[saveFileDialog] == 0} {
-                        return [saveFile $tEdit::savename]
+                        return [saveFile $w $tEdit::savename]
                     } else {
                         return 2
                     }
                 } else {
-                    return [saveFile $tEdit::filename]
+                    return [saveFile $w $tEdit::filename]
                 }
             }
             no {return 0}
@@ -212,16 +207,16 @@ proc askSave {} {
 }
 
 proc newFile {w} {
-    if {[askSave] != 0} {return 2}
+    if {[askSave $w] != 0} {return 2}
     if {$tEdit::read_only eq "true"} {.m.options invoke "Read Only"}
     $w delete 1.0 end
-    updateGUI newfile
+    updateGUI $w newfile
     markDelete $w "all"
-    clearModified $w
+    unfoldText $w "all"
 }
 
-proc openFileDialog {} {
-    if {[askSave] != 0} {return 2}
+proc openFileDialog {w} {
+    if {[askSave $w] != 0} {return 2}
     set filename [tk_getOpenFile -title "Open File"]
     if {$filename eq "" } {return 2}
     if {[file type $filename] ne "file"} {
@@ -230,26 +225,26 @@ proc openFileDialog {} {
             -detail "$filename\nis a [file type $filename]."
         return 1
     } else {
-        openFile $filename
+        openFile $w $filename
     }
 }
 
-proc openFile {filename} {
+proc openFile {w filename} {
     if [catch {set fh [open $filename r]} msg] {
         errorMessage [lindex [split $msg :] 1]
         return 1
     }
     if {$tEdit::read_only eq "true"} {.m.options invoke "Read Only"}
-    .text replace 1.0 end [read -nonewline $fh]
+    $w replace 1.0 end [read -nonewline $fh]
     close $fh
-    .text mark set insert 1.0
-    .text see insert
+    $w mark set insert 1.0
+    $w see insert
     if {[file writable $filename] == 0} {
         .m.options invoke "Read Only"
     }
-    updateGUI $filename
-    markDelete .text "all"
-    clearModified .text
+    updateGUI $w $filename
+    markDelete $w "all"
+    unfoldText $w "all"
 }
 
 proc saveFileDialog {} {
@@ -276,7 +271,7 @@ proc saveFileDialog {} {
     }
 }
 
-proc saveFile {filename} {
+proc saveFile {w filename} {
     if {$filename eq ""} {
         if {[saveFileDialog] == 0} {
             set filename $tEdit::savename
@@ -288,19 +283,18 @@ proc saveFile {filename} {
         errorMessage [lindex [split $msg :] 1]
         return 1
     }
-    puts -nonewline $fh [.text get 1.0 end]
+    puts -nonewline $fh [$w get 1.0 end]
     close $fh
-    updateGUI $filename
-    clearModified .text
+    updateGUI $w $filename
     return 0
 }
 
-proc saveAs {} {
-    if {[saveFileDialog] == 0} {saveFile $tEdit::filename}
+proc saveAs {w} {
+    if {[saveFileDialog] == 0} {saveFile $w $tEdit::savename}
 }
 
-proc exitCommand {} {
-    if {[askSave] == 0} {exit 0}
+proc exitCommand {w} {
+    if {[askSave $w] == 0} {exit 0}
 }
 
 proc recentAdd {filename} {
@@ -315,7 +309,7 @@ proc recentAdd {filename} {
 }
 
 proc recentOpen {w} {
-    if {[askSave] != 0} {return 2}
+    if {[askSave $w] != 0} {return 2}
     set filename [$w get active]
     openFile $filename
 }
@@ -330,7 +324,7 @@ proc selectAll {w} {
     $w tag add sel 1.0 end
 }
 
-proc foldLines {w tag} {
+proc foldText {w tag} {
     set selected [$w tag ranges $tag]
     if {$selected eq ""} {
         errorMessage "select lines to fold"
@@ -354,7 +348,7 @@ proc foldLines {w tag} {
     set fold "$w.fold$yfrom-$yto"
     button $fold -text "$button_text" -padx 0 -pady 0 \
         -relief flat -takefocus 0 -cursor "hand2" \
-        -command [list unFoldLines $w $fold]
+        -command [list unfoldText $w $fold]
     $w tag add $fold $yfrom.0 $yto.end
     $w tag configure $fold -elide "true"
     $w window create $yfrom.0 -window $fold
@@ -364,7 +358,7 @@ proc foldLines {w tag} {
     .m.edit entryconfigure "Unfold All" -state normal
 }
 
-proc unFoldLines {w which} {
+proc unfoldText {w which} {
     switch -- $which {
         all {
             foreach fold $tEdit::folds {
@@ -480,7 +474,7 @@ proc markLine {w} {
             errorMessage "cannot mark: empty line"
             return 1
         }
-        set mark "Mark[incr tEdit::marks_id]"
+        set mark "Mark[incr tEdit::marks_count]"
         $w mark set $mark $linenum.0
         $w tag configure $mark -underline true
         $w tag raise $mark sel
@@ -529,6 +523,7 @@ proc markDelete {w which} {
                 $w tag delete $mark
             }
             set tEdit::marks [list]
+            set tEdit::marks_count 0
         }
         active {
             set mark [.l_marks get active]
@@ -580,8 +575,8 @@ proc openfileBrowser {w node} {
     }
 }
 
-proc toggleBrowser {w} {
-    if {$tEdit::show_browser eq "true"} {
+proc toggleBrowser {w show} {
+    if {$show eq "true"} {
         .pane insert 0 $w
     } else {
         .pane forget $w
@@ -768,11 +763,11 @@ proc createMenus {} {
             .m.file add command -label "New" -underline 0 \
                 -command {newFile .text}
             .m.file add command -label "Open..." -underline 0 \
-                -accelerator "Ctrl+O" -command {openFileDialog}
+                -accelerator "Ctrl+O" -command {openFileDialog .text}
             .m.file add command -label "Save" -underline 0 \
-                -accelerator "Ctrl+S" -command {saveFile $tEdit::filename}
+                -accelerator "Ctrl+S" -command {saveFile .text $tEdit::filename}
             .m.file add command -label "Save As..." -underline 5 \
-                -accelerator "Ctrl+Shift+S" -command {saveAs}
+                -accelerator "Ctrl+Shift+S" -command {saveAs .text}
             .m.file add separator
             .m.file add checkbutton -label "Recent Files..." -underline 0 \
                 -accelerator "F6" -state "disabled" \
@@ -780,7 +775,7 @@ proc createMenus {} {
                 -command {toggleView .lf_recent $tEdit::show_recent}
             .m.file add separator
             .m.file add command -label "Exit" -underline 1 \
-                -accelerator "Ctrl+Q" -command {exitCommand}
+                -accelerator "Ctrl+Q" -command {exitCommand .text}
         menu .m.edit -tearoff 0
         .m add cascade -label "Edit" -underline 0 -menu .m.edit
             .m.edit add command -label "Undo" -underline 0 \
@@ -799,10 +794,10 @@ proc createMenus {} {
                 -accelerator "Ctrl+A" -command {selectAll .text}
             .m.edit add separator
             .m.edit add command -label "Fold Lines" -underline 0 \
-                -accelerator "Ctrl+J" -command {foldLines .text sel}
+                -accelerator "Ctrl+J" -command {foldText .text sel}
             .m.edit add command -label "Unfold All" -underline 1 \
                 -accelerator "Ctrl+Shift+J" -state disabled \
-                -command {unFoldLines .text all}
+                -command {unfoldText .text all}
         menu .m.search -tearoff 0
         .m add cascade -label "Search" -underline 0 -menu .m.search
             .m.search add checkbutton -label "Search..." -underline 0 \
@@ -823,19 +818,19 @@ proc createMenus {} {
                 -variable tEdit::show_marks -onvalue "true" -offvalue "false" \
                 -command {toggleView .lf_marks $tEdit::show_marks}
             .m.marks add command -label "Mark/Unmark" -underline 0 \
-                -accelerator "Ctrl+M" -command [list markLine .text]
+                -accelerator "Ctrl+M" -command {markLine .text}
             .m.marks add command -label "Next Mark" -underline 0 \
                 -accelerator "F5" -state disabled \
-                -command [list markNext .text]
+                -command {markNext .text}
             .m.marks add command -label "Clear All Marks" -underline 0 \
                 -accelerator "Ctrl+Shift+M" -state disabled \
-                -command [list markDelete .text "all"]
+                -command {markDelete .text "all"}
         menu .m.show -tearoff 0
         .m add cascade -label "Show" -underline 3 -menu .m.show
             .m.show add checkbutton -label "File Browser" -underline 0 \
                 -accelerator "F2" \
                 -variable tEdit::show_browser -onvalue "true" -offvalue "false" \
-                -command {toggleBrowser .tree}
+                -command {toggleBrowser .left_pane $tEdit::show_browser}
             .m.show add separator
             .m.show add checkbutton -label "Menu Bar" -underline 0 \
                 -variable tEdit::show_menubar -onvalue ".m" -offvalue "" \
@@ -967,7 +962,7 @@ proc createWidgets {} {
         # grid treeview and its scrollbars in the left pane frame
         grid .tree      -in .left_pane -row 0 -column 0 -sticky news
         grid .ysb_tree  -in .left_pane -row 0 -column 1 -sticky ns
-        grid rowconfigure       .left_pane  .tree -weight 1
+        grid rowconfigure       .left_pane .tree -weight 1
         grid columnconfigure    .left_pane .tree -weight 1
     # frame for the right pane
     ttk::frame .right_pane
@@ -1103,8 +1098,7 @@ proc createBindings {} {
         <Control-o> \
         <Control-t> \
         <Control-z> \
-        <Control-Shift-Z>\
-    ]
+        <Control-Z>]
     foreach key $bindings {
         bind Text $key {return}
     }
@@ -1117,30 +1111,30 @@ proc createBindings {} {
             .m.options entryconfigure "Set Font..." -state normal
         }
     }
-    bind . <Control-o>       {.m.file    invoke "Open..."}
-    bind . <Control-s>       {.m.file    invoke "Save"}
-    bind . <Control-Shift-S> {.m.file    invoke "Save As..."}
-    bind . <F6>              {.m.file    invoke "Recent Files..."}
-    bind . <Control-q>       {.m.file    invoke "Exit"}
-    bind . <Control-Shift-Q> {exit}
-    bind . <Control-z>       {.m.edit    invoke "Undo"}
-    bind . <Control-Shift-Z> {.m.edit    invoke "Redo"}
-    bind . <Control-a>       {.m.edit    invoke "Select All"}
-    bind . <Control-j>       {.m.edit    invoke "Fold Lines"}
-    bind . <Control-J>       {.m.edit    invoke "Unfold All"}
-    bind . <Control-f>       {.m.search  invoke "Search..."}
-    bind . <F3>              {.m.search  invoke "Find Next"}
-    bind . <Shift-F3>        {.m.search  invoke "Find Prev"}
-    bind . <Control-l>       {.m.search  invoke "Clear Highlight"}
-    bind . <Shift-F5>        {.m.marks   invoke "Show Marks..."}
-    bind . <Control-m>       {.m.marks   invoke "Mark/Unmark"}
-    bind . <F5>              {.m.marks   invoke "Next Mark"}
-    bind . <Control-M>       {.m.marks   invoke "Clear All Marks"}
-    bind . <F2>              {.m.show    invoke "File Browser"}
-    bind . <F8>              {.m.show    invoke "Scratchpad"}
-    bind . <Control-r>       {.m.options invoke "Read Only"}
-    bind . <Control-w>       {.m.options invoke "Word Wrap"}
-    bind . <F1>              {.m.help    invoke "About tEdit..."}
+    bind . <Control-o> {.m.file invoke "Open..."}
+    bind . <Control-s> {.m.file invoke "Save"}
+    bind . <Control-S> {.m.file invoke "Save As..."}
+    bind . <F6>        {.m.file invoke "Recent Files..."}
+    bind . <Control-q> {.m.file invoke "Exit"}
+    bind . <Control-Q> {exit}
+    bind . <Control-z> {.m.edit invoke "Undo"}
+    bind . <Control-Z> {.m.edit invoke "Redo"}
+    bind . <Control-a> {.m.edit invoke "Select All"}
+    bind . <Control-j> {.m.edit invoke "Fold Lines"}
+    bind . <Control-J> {.m.edit invoke "Unfold All"}
+    bind . <Control-f> {.m.search invoke "Search..."}
+    bind . <F3>        {.m.search invoke "Find Next"}
+    bind . <Shift-F3>  {.m.search invoke "Find Prev"}
+    bind . <Control-l> {.m.search invoke "Clear Highlight"}
+    bind . <Shift-F5>  {.m.marks invoke "Show Marks..."}
+    bind . <Control-m> {.m.marks invoke "Mark/Unmark"}
+    bind . <F5>        {.m.marks invoke "Next Mark"}
+    bind . <Control-M> {.m.marks invoke "Clear All Marks"}
+    bind . <F2>        {.m.show invoke "File Browser"}
+    bind . <F8>        {.m.show invoke "Scratchpad"}
+    bind . <Control-r> {.m.options invoke "Read Only"}
+    bind . <Control-w> {.m.options invoke "Word Wrap"}
+    bind . <F1>        {.m.help invoke "About tEdit..."}
     # make Return and keypad Enter behave the same
     bind . <KP_Enter> {event generate %W <Return>}
 
@@ -1208,7 +1202,7 @@ if {$::argc > 0} {
             puts stderr "error: $tEdit::filename is a [file type $tEdit::filename]"
             exit 1
         } else {
-            openFile $tEdit::filename
+            openFile .text $tEdit::filename
         }
     }
 }
