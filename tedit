@@ -331,42 +331,41 @@ proc selectAll {w} {
 }
 
 proc foldLines {w tag} {
-    lassign [$w tag ranges $tag] from to
-    if {$from eq ""} {
+    set selected [$w tag ranges $tag]
+    if {$selected eq ""} {
         errorMessage "select lines to fold"
         return 1
     }
-    scan $from %d from_line
-    scan $to %d to_line
+    if {[set fold_sum [$w count -lines {*}$selected]] == 0} {
+        errorMessage "select lines to fold"
+        return 1
+    }
+    scan $selected {%d.%d %d.%d} yfrom xfrom yto xto
     # check if a fold exists in current selection
     foreach old_fold $tEdit::folds {
-        lassign [$w tag ranges $old_fold] old_from old_to
-        scan $old_from %d old_from_line
-        scan $old_to %d old_to_line
-
-        if {$from_line <= $old_from_line && $to_line >= $old_to_line} {
+        scan [$w tag ranges $old_fold] {%d.%d %d.%d} old_yfrom old_xfrom old_yto old_xto
+        if {$yfrom <= $old_yfrom && $yto >= $old_yto} {
             $old_fold invoke
         }
     }
     # get first line text to show in fold button
-    set fold_lines [$w count -lines $from $to+1line]
-    set fold_line [$w get $from_line.0 $from_line.end]
-    set fold_text "\u25b6\u25b6 $fold_lines lines: $fold_line"
-    set fold "$w.$from_line-$to_line"
-    button $fold -text "$fold_text" -padx 0 -pady 0 -relief flat \
-        -takefocus 0 -cursor "left_ptr" -command [list unFoldLines $w $fold]
+    set fold_text [$w get $yfrom.0 $yfrom.end]
+    set button_text "\u25b6\u25b6 [incr fold_sum] lines: $fold_text"
+    set fold "$w.fold$yfrom-$yto"
+    button $fold -text "$button_text" -padx 0 -pady 0 \
+        -relief flat -takefocus 0 -cursor "hand2" \
+        -command [list unFoldLines $w $fold]
+    $w tag add $fold $yfrom.0 $yto.end
     $w tag configure $fold -elide "true"
-    $w tag add $fold $from_line.0 $to_line.end
-    $w window create $from_line.0 -window $fold
-    $w mark set insert $to_line.0+1line
-    $w tag remove $tag $from $to
+    $w window create $yfrom.0 -window $fold
+    $w mark set insert $yto.0+1line
+    $w tag remove $tag {*}$selected
     lappend tEdit::folds $fold
     .m.edit entryconfigure "Unfold All" -state normal
 }
 
 proc unFoldLines {w which} {
     switch -- $which {
-        {}  {return 2}
         all {
             foreach fold $tEdit::folds {
                 $w tag configure $fold -elide "false"
@@ -438,7 +437,7 @@ proc searchAll {w what} {
         $w tag add tag_search_all $position $position+[lindex $n $i]c
         incr i
     }
-    set tEdit::matches [llength $n]
+    set tEdit::matches [llength $positions]
 }
 
 proc replaceText {w what with} {
