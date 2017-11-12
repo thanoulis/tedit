@@ -118,6 +118,7 @@ namespace eval tEdit {
     variable show_browser   false
     variable show_menubar   .m
     variable show_statusbar true
+    variable show_textln    false
     variable show_yscroll   true
     variable show_xscroll   true
     variable read_only      false
@@ -378,16 +379,16 @@ proc searchText {w what {direction -forwards}} {
         lappend tEdit::hsearch $what
     }
     clearHighlight $w tag_search
-    set command [list $w search $tEdit::reg_exp $direction -count n -- $what]
+    set search_cmd [list $w search $tEdit::reg_exp $direction -count n -- $what]
     if {$direction eq "-backwards"} {
-        set command [linsert $command end {insert-1char}]
+        set search_cmd [linsert $search_cmd end {insert-1char}]
     } else {
-        set command [linsert $command end {insert+1char}]
+        set search_cmd [linsert $search_cmd end {insert+1char}]
     }
     if {$tEdit::match_case eq "false"} {
-        set command [linsert $command 2 -nocase]
+        set search_cmd [linsert $search_cmd 2 -nocase]
     }
-    if [catch {set position [{*}$command]} msg] {
+    if [catch {set position [{*}$search_cmd]} msg] {
         .cb_search configure -style red.TCombobox
         errorMessage [lindex [split $msg :] 1]
         return 1
@@ -407,11 +408,11 @@ proc searchAll {w what} {
         return 1
     }
     set tEdit::matches 0
-    set command [list $w search $tEdit::reg_exp -all -count n -- $what 1.0 end]
+    set search_cmd [list $w search $tEdit::reg_exp -all -count n -- $what 1.0 end]
     if {$tEdit::match_case eq "false"} {
-        set command [linsert $command 2 -nocase]
+        set search_cmd [linsert $search_cmd 2 -nocase]
     }
-    if [catch {set positions [{*}$command]} msg] {
+    if [catch {set positions [{*}$search_cmd]} msg] {
         .cb_search configure -style red.TCombobox
         errorMessage [lindex [split $msg :] 1]
         return 1
@@ -568,9 +569,43 @@ proc openfileBrowser {w node} {
 
 proc toggleBrowser {w show} {
     if {$show eq "true"} {
-        .pane insert 0 $w
+        .main insert 0 $w
     } else {
-        .pane forget $w
+        .main forget $w
+    }
+}
+
+proc lineNumbers {w ln args} {
+    set checklist {
+        bbox cget compare count debug dlineinfo
+        dump get index mark peer search
+    }
+    if {[llength $args] == 0 || [lindex $args 0 1] ni $checklist} {
+        $ln configure -background [$w tag cget tag_search_all -background]
+        $ln delete all
+        set i [$w index @0,0]
+        while true {
+            set dline [$w dlineinfo $i]
+            if {[llength $dline] == 0} {break}
+            set height [lindex $dline 3]
+            set y [lindex $dline 1]
+            set linenum [lindex [split $i .] 0]
+            $ln create text 0 $y -anchor nw -text $linenum \
+                -font [$w cget -font] -fill [$w cget -foreground]
+            set i [$w index "$i + 1 line"]
+        }
+    }
+}
+
+proc toggleLineNumbers {w text show} {
+    if {$show eq "true"} {
+        bind $text <Configure> [list lineNumbers $text $w]
+        trace add execution $text leave [list lineNumbers $text $w]
+        grid $w
+    } else {
+        bind $text <Configure> {return}
+        trace remove execution $text leave [list lineNumbers $text $w]
+        grid remove $w
     }
 }
 
@@ -666,7 +701,6 @@ proc selectColors {w colors} {
                                   {background} {#ffffff}]
         }
     }
-
     $w configure -insertbackground $color(cursor)
     $w configure -foreground $color(foreground)
     $w configure -background $color(background)
@@ -827,6 +861,9 @@ proc createMenus {} {
             .m.show add checkbutton -label "Status Bar" -underline 7 \
                 -variable tEdit::show_statusbar -onvalue "true" -offvalue "false" \
                 -command {toggleView .f_statusbar $tEdit::show_statusbar}
+            .m.show add checkbutton -label "Line Numbers" -underline 5 \
+                -variable tEdit::show_textln -onvalue "true" -offvalue "false" \
+                -command {toggleLineNumbers .text_ln .text $tEdit::show_textln}
             .m.show add checkbutton -label "Vertical Scrollbar" -underline 0 \
                 -variable tEdit::show_yscroll -onvalue "true" -offvalue "false" \
                 -command {toggleView .ysb_text $tEdit::show_yscroll}
@@ -926,44 +963,55 @@ proc createMenus {} {
 # WIDGETS
 #
 proc createWidgets {} {
-
     # create a paned window
-    ttk::panedwindow .pane -orient horizontal
+    ttk::panedwindow .main -orient horizontal
     # frame for the left pane
     ttk::frame .left_pane
         ttk::treeview .tree -selectmode browse \
             -columns {fullpath type} -displaycolumns {} \
             -yscroll {.ysb_tree set}
-        .tree heading {#0} -anchor c -text "File Browser"
+        .tree heading {#0} -anchor center -text "File Browser"
         ttk::scrollbar .ysb_tree -orient vertical -command {.tree yview}
-        # grid treeview and its scrollbars in the left pane frame
-        grid .tree      -in .left_pane -row 0 -column 0 -sticky news
-        grid .ysb_tree  -in .left_pane -row 0 -column 1 -sticky ns
-        grid rowconfigure       .left_pane .tree -weight 1
-        grid columnconfigure    .left_pane .tree -weight 1
+    # grid treeview and its scrollbar in the left pane frame
+    grid .tree     -in .left_pane -row 0 -column 0 -sticky news
+    grid .ysb_tree -in .left_pane -row 0 -column 1 -sticky ns
+    grid rowconfigure    .left_pane .tree -weight 1
+    grid columnconfigure .left_pane .tree -weight 1
+
     # frame for the right pane
     ttk::frame .right_pane
         ttk::labelframe .lf_marks -borderwidth 1 -relief flat -text "Marks:"
-        tk::listbox .l_marks -listvariable tEdit::marks -width 10 \
-            -takefocus 0 -highlightthickness 0
-        # grid listbox in its labelfame
-        grid .l_marks   -in .lf_marks   -row 0 -column 0 -sticky ns
+            tk::listbox .l_marks -listvariable tEdit::marks -width 10 \
+                -takefocus 0 -highlightthickness 0
+        # grid marks listbox in its labelframe
+        grid .l_marks -in .lf_marks -row 0 -column 0 -sticky ns
         grid rowconfigure .lf_marks .l_marks -weight 1
 
-        tk::text .text -setgrid false -relief flat -highlightthickness 0 -takefocus 0 \
-            -xscrollcommand {.xsb_text set} \
-            -yscrollcommand {.ysb_text set} \
-            -wrap $tEdit::word_wrap -undo true -autoseparators true \
-            -tabstyle wordprocessor \
-            -blockcursor false -insertunfocussed hollow
-        # search tags management and basic colors
-        .text tag configure tag_search     -foreground yellow -background black
-        .text tag configure tag_search_all -foreground black  -background yellow
-        .text tag raise tag_search
-        .text tag lower tag_search_all tag_search
+        ttk::frame .f_text
+            tk::canvas .text_ln -width 50 -highlightthickness 0 -background "#ffff00"
+            tk::text .text -setgrid false -relief flat -highlightthickness 0 -takefocus 0 \
+                -xscrollcommand {.xsb_text set} \
+                -yscrollcommand {.ysb_text set} \
+                -wrap $tEdit::word_wrap -undo true -autoseparators true \
+                -tabstyle wordprocessor \
+                -blockcursor false -insertunfocussed hollow
+            # text tags management and starting colors
+            .text tag configure tag_search     -foreground "#ffff00" -background "#000000"
+            .text tag configure tag_search_all -foreground "#000000" -background "#ffff00"
+            .text tag raise tag_search
+            .text tag lower tag_search_all tag_search
 
-        ttk::scrollbar .xsb_text -orient horizontal -command {.text xview}
-        ttk::scrollbar .ysb_text -orient vertical -command {.text yview}
+            ttk::scrollbar .xsb_text -orient horizontal -command {.text xview}
+            ttk::scrollbar .ysb_text -orient vertical -command {.text yview}
+        # grid line number canvas, text and its scrollbars in the text frame
+        grid .text_ln  -in .f_text -row 0 -column 0 -sticky ns
+        grid .text     -in .f_text -row 0 -column 1 -sticky news
+        grid .ysb_text -in .f_text -row 0 -column 2 -sticky ns
+        grid .xsb_text -in .f_text -row 1 -column 0 -sticky we -columnspan 2
+        grid rowconfigure    .f_text .text -weight 1
+        grid columnconfigure .f_text .text -weight 1
+        # remove line numbers canvas from view
+        grid remove .text_ln
 
         ttk::frame .f_search -borderwidth 1 -relief sunken
             ttk::labelframe .lf_search -borderwidth 1 -relief flat -text "Search for:"
@@ -992,14 +1040,14 @@ proc createWidgets {} {
                     -underline 0 -takefocus 0 \
                     -variable tEdit::show_replace -onvalue "true" -offvalue "false" \
                     -command {toggleView .lf_replace $tEdit::show_replace}
-                # grid them all in the search labelframe
-                grid .cb_search     -in .lf_search -row 0 -column 0
-                grid .b_findnext    -in .lf_search -row 0 -column 1
-                grid .b_findprev    -in .lf_search -row 0 -column 2
-                grid .ck_matchcase  -in .lf_search -row 0 -column 3
-                grid .ck_regexp     -in .lf_search -row 0 -column 4
-                grid .ck_replace    -in .lf_search -row 0 -column 5 -sticky e
-                grid columnconfigure .lf_search .ck_replace -weight 1
+            # grid them in the search labelframe
+            grid .cb_search    -in .lf_search -row 0 -column 0
+            grid .b_findnext   -in .lf_search -row 0 -column 1
+            grid .b_findprev   -in .lf_search -row 0 -column 2
+            grid .ck_matchcase -in .lf_search -row 0 -column 3
+            grid .ck_regexp    -in .lf_search -row 0 -column 4
+            grid .ck_replace   -in .lf_search -row 0 -column 5 -sticky e
+            grid columnconfigure .lf_search .ck_replace -weight 1
 
             ttk::labelframe .lf_replace -borderwidth 1 -relief flat -text "Replace with:"
                 ttk::combobox .cb_replace -style white.TCombobox \
@@ -1011,56 +1059,52 @@ proc createWidgets {} {
                 ttk::button .b_replaceall -text "All" -width 9 \
                     -underline 0 -takefocus 0 \
                     -command {replaceAll .text $tEdit::search $tEdit::replace}
-                # grid them all in the replace labelframe
-                grid .cb_replace    -in .lf_replace -row 0 -column 0
-                grid .b_replace     -in .lf_replace -row 0 -column 1
-                grid .b_replaceall  -in .lf_replace -row 0 -column 2
-            # grid find and replace labelframes in the search frame
-            grid .lf_search     -in .f_search -row 0 -column 0 -sticky we
-            grid .lf_replace    -in .f_search -row 1 -column 0 -sticky we
-            grid columnconfigure .f_search .lf_search -weight 1
-            # remove replace frame from view
-            grid remove .lf_replace
-        # grid  text, its scrollbars, mark list and search frame in the right pane frame
-        grid .text      -in .right_pane -row 0 -column 0 -sticky news
-        grid .ysb_text  -in .right_pane -row 0 -column 1 -sticky ns
-        grid .lf_marks  -in .right_pane -row 0 -column 2 -sticky ns
-        grid .xsb_text  -in .right_pane -row 1 -column 0 -sticky we -columnspan 1
-        grid .f_search  -in .right_pane -row 2 -column 0 -sticky we -columnspan 3
-        grid rowconfigure       .right_pane .text -weight 1
-        grid columnconfigure    .right_pane .text -weight 1
-        # remove mark list from view
-        grid remove .lf_marks
+            # grid them in the replace labelframe
+            grid .cb_replace   -in .lf_replace -row 0 -column 0
+            grid .b_replace    -in .lf_replace -row 0 -column 1
+            grid .b_replaceall -in .lf_replace -row 0 -column 2
+        # grid find and replace labelframes in the search frame
+        grid .lf_search  -in .f_search -row 0 -column 0 -sticky we
+        grid .lf_replace -in .f_search -row 1 -column 0 -sticky we
+        grid columnconfigure .f_search .lf_search -weight 1
+        # remove replace frame from view
+        grid remove .lf_replace
+    # grid text frame, marks list and search frame in the right pane frame
+    grid .f_text   -in .right_pane -row 0 -column 0 -sticky news
+    grid .lf_marks -in .right_pane -row 0 -column 1 -sticky ns
+    grid .f_search -in .right_pane -row 1 -column 0 -sticky we -columnspan 2
+    grid rowconfigure    .right_pane .f_text -weight 1
+    grid columnconfigure .right_pane .f_text -weight 1
+    # remove marks list and search frame from view
+    grid remove .lf_marks .f_search
 
     ttk::frame .f_statusbar -borderwidth 1 -relief sunken
-        ttk::label .lb_filename -relief flat -anchor e  -textvariable tEdit::filename
-        ttk::label .lb_message  -relief flat -anchor c  -textvariable tEdit::error_msg
-        ttk::label .lb_safemode -relief flat -anchor w  -textvariable tEdit::show_mode
-        ttk::label .lb_modified -relief flat -anchor w  -textvariable tEdit::modified
-        ttk::label .lb_position -relief flat -anchor w  -textvariable tEdit::position
+        ttk::label .lb_filename -relief flat -anchor e -textvariable tEdit::filename
+        ttk::label .lb_message  -relief flat -anchor c -textvariable tEdit::error_msg
+        ttk::label .lb_showmode -relief flat -anchor w -textvariable tEdit::show_mode
+        ttk::label .lb_modified -relief flat -anchor w -textvariable tEdit::modified
+        ttk::label .lb_position -relief flat -anchor w -textvariable tEdit::position
         ttk::sizegrip .lb_sizegrip
-        # grid all statusbar labels in the statusbar frame
-        grid .lb_filename -in .f_statusbar -row 0 -column 0 -sticky w
-        grid .lb_message  -in .f_statusbar -row 0 -column 1 -sticky we
-        grid .lb_safemode -in .f_statusbar -row 0 -column 2
-        grid .lb_modified -in .f_statusbar -row 0 -column 3
-        grid .lb_position -in .f_statusbar -row 0 -column 4
-        grid .lb_sizegrip -in .f_statusbar -row 0 -column 5 -sticky e
-        grid columnconfigure .f_statusbar .lb_message -weight 1
+    # grid all statusbar labels in the statusbar frame
+    grid .lb_filename -in .f_statusbar -row 0 -column 0 -sticky w
+    grid .lb_message  -in .f_statusbar -row 0 -column 1 -sticky we
+    grid .lb_showmode -in .f_statusbar -row 0 -column 2
+    grid .lb_modified -in .f_statusbar -row 0 -column 3
+    grid .lb_position -in .f_statusbar -row 0 -column 4
+    grid .lb_sizegrip -in .f_statusbar -row 0 -column 5 -sticky e
+    grid columnconfigure .f_statusbar .lb_message -weight 1
 
-    # grid the three main frames in main window
-    grid .pane          -in . -row 0 -column 0 -sticky news
-    grid .f_statusbar   -in . -row 1 -column 0 -sticky we
-    grid rowconfigure       . .pane -weight 1
-    grid columnconfigure    . .pane -weight 1
-    # remove search frame from view
-    grid remove .f_search
+    # grid paned window and statusbar in main window
+    grid .main        -in . -row 0 -column 0 -sticky news
+    grid .f_statusbar -in . -row 1 -column 0 -sticky we
+    grid rowconfigure    . .main -weight 1
+    grid columnconfigure . .main -weight 1
 
     # add left and right panes to paned window
-    .pane add .left_pane
-    .pane add .right_pane
+    .main add .left_pane
+    .main add .right_pane
     # remove left pane from view
-    .pane forget .left_pane
+    .main forget .left_pane
 }
 
 ################################################################################
