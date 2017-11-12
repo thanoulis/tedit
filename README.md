@@ -5,6 +5,7 @@ Features:
 
 * Word Wrap
 * Mark Lines
+* Line Numbers
 * Line Spacing
 * Custom Folding
 * Unlimited Undo/Redo
