@@ -12,8 +12,8 @@ namespace eval Scratchpad {
     variable menu       {}
 }
 
-proc createScratchpadMenu {notebook} {
-    menu [set Scratchpad::menu $notebook.popup_menu] -tearoff 0
+proc createScratchpadMenu {scratchpad} {
+    menu [set Scratchpad::menu $scratchpad.menu] -tearoff 0
         $Scratchpad::menu add command -label "New Tab" \
             -underline 0 -accelerator "Ctrl+T" \
             -command {newScratchpadTab $Scratchpad::notebook $Scratchpad::count}
@@ -37,36 +37,36 @@ proc createScratchpadMenu {notebook} {
 }
 
 proc newScratchpadTab {notebook count} {
-    ttk::frame [set scratchpadTab(frame) $notebook.f$count]
-    set scratchpadTab(text) $notebook.text$count
-    set scratchpadTab(yscroll) $notebook.yscroll$count
-    set scratchpadTab(xscroll) $notebook.xscroll$count
+    ttk::frame [set scratchpad(frame) $notebook.f$count]
+    set scratchpad(text) $notebook.text$count
+    set scratchpad(yscroll) $notebook.yscroll$count
+    set scratchpad(xscroll) $notebook.xscroll$count
+    set scratchpad(sizegrip) $notebook.sizegrip$count
+        tk::text $scratchpad(text) -wrap none -highlightthickness 0 \
+            -yscrollcommand [list $scratchpad(yscroll) set] \
+            -xscrollcommand [list $scratchpad(xscroll) set]
 
-    tk::text $scratchpadTab(text) -wrap none -highlightthickness 0 \
-        -yscrollcommand [list $scratchpadTab(yscroll) set] \
-        -xscrollcommand [list $scratchpadTab(xscroll) set]
+        ttk::scrollbar $scratchpad(yscroll) \
+            -orient vertical -command [list $scratchpad(text) yview]
+        ttk::scrollbar $scratchpad(xscroll) \
+            -orient horizontal -command [list $scratchpad(text) xview]
+        ttk::sizegrip $scratchpad(sizegrip)
+    grid $scratchpad(text)     -in $scratchpad(frame) -row 0 -column 0 -sticky news
+    grid $scratchpad(yscroll)  -in $scratchpad(frame) -row 0 -column 1 -sticky ns
+    grid $scratchpad(xscroll)  -in $scratchpad(frame) -row 1 -column 0 -sticky we
+    grid $scratchpad(sizegrip) -in $scratchpad(frame) -row 1 -column 1
+    grid rowconfigure    $scratchpad(frame) $scratchpad(text) -weight 1
+    grid columnconfigure $scratchpad(frame) $scratchpad(text) -weight 1
 
-    ttk::scrollbar $scratchpadTab(yscroll) \
-        -orient vertical -command [list $scratchpadTab(text) yview]
-    ttk::scrollbar $scratchpadTab(xscroll) \
-        -orient horizontal -command [list $scratchpadTab(text) xview]
-
-    grid $scratchpadTab(text)    -in $scratchpadTab(frame) -row 0 -column 0 -sticky news
-    grid $scratchpadTab(yscroll) -in $scratchpadTab(frame) -row 0 -column 1 -sticky ns
-    grid $scratchpadTab(xscroll) -in $scratchpadTab(frame) -row 1 -column 0 -sticky we
-
-    grid rowconfigure    $scratchpadTab(frame) $scratchpadTab(text) -weight 1
-    grid columnconfigure $scratchpadTab(frame) $scratchpadTab(text) -weight 1
-
-    $notebook add $scratchpadTab(frame) -text "Scratch $count" -underline 8
-    focus $scratchpadTab(text)
+    $notebook add $scratchpad(frame) -text "Scratch $count" -underline 8
+    focus $scratchpad(text)
     incr Scratchpad::count
 
     if {[$notebook index end] > 1} {
         $Scratchpad::menu entryconfigure "Close Tab" -state normal
     }
 
-    bind $scratchpadTab(text) <3> {focus %W; tk_popup $Scratchpad::menu %X %Y}
+    bind $scratchpad(text) <3> {focus %W; tk_popup $Scratchpad::menu %X %Y}
 }
 
 proc closeScratchpadTab {notebook} {
@@ -91,18 +91,16 @@ proc showScratchpad {scratchpad} {
             wm protocol $scratchpad WM_DELETE_WINDOW {.m.show invoke "Scratchpad"}
 
             ttk::notebook [set Scratchpad::notebook $scratchpad.notebook]
-            createScratchpadMenu $Scratchpad::notebook
+            createScratchpadMenu $scratchpad
             newScratchpadTab $Scratchpad::notebook $Scratchpad::count
             pack $Scratchpad::notebook -fill both -expand true
 
             ttk::notebook::enableTraversal $Scratchpad::notebook
-
-            bind $scratchpad <Control-t>  {$Scratchpad::menu invoke "New Tab"}
-            bind $scratchpad <Control-F4> {$Scratchpad::menu invoke "Close Tab"}
-
             foreach keysym [list <F8> <Escape> <Control-q>] {
                 bind $scratchpad $keysym {.m.show invoke "Scratchpad"}
             }
+            bind $scratchpad <Control-t>  {$Scratchpad::menu invoke "New Tab"}
+            bind $scratchpad <Control-F4> {$Scratchpad::menu invoke "Close Tab"}
 
             # make Return and keypad Enter behave the same
             bind $scratchpad <KP_Enter> {event generate %W <Return>}
@@ -1084,14 +1082,14 @@ proc createWidgets {} {
         ttk::label .lb_showmode -relief flat -anchor w -textvariable tEdit::show_mode
         ttk::label .lb_modified -relief flat -anchor w -textvariable tEdit::modified
         ttk::label .lb_position -relief flat -anchor w -textvariable tEdit::position
-        ttk::sizegrip .lb_sizegrip
+        ttk::sizegrip .sizegrip
     # grid all statusbar labels in the statusbar frame
     grid .lb_filename -in .f_statusbar -row 0 -column 0 -sticky w
     grid .lb_message  -in .f_statusbar -row 0 -column 1 -sticky we
     grid .lb_showmode -in .f_statusbar -row 0 -column 2
     grid .lb_modified -in .f_statusbar -row 0 -column 3
     grid .lb_position -in .f_statusbar -row 0 -column 4
-    grid .lb_sizegrip -in .f_statusbar -row 0 -column 5 -sticky e
+    grid .sizegrip    -in .f_statusbar -row 0 -column 5 -sticky e
     grid columnconfigure .f_statusbar .lb_message -weight 1
 
     # grid paned window and statusbar in main window
