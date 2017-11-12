@@ -59,6 +59,7 @@ proc newScratchpadTab {notebook count} {
     grid columnconfigure $scratchpad(frame) $scratchpad(text) -weight 1
 
     $notebook add $scratchpad(frame) -text "Scratch $count" -underline 8
+    $notebook select $scratchpad(frame)
     focus $scratchpad(text)
     incr Scratchpad::count
 
