@@ -131,10 +131,10 @@ namespace eval tEdit {
     variable show_replace   false
     variable replace        {}
     variable show_search    false
-    variable show_recent    false
     variable show_marks     false
     variable filename       {}
     variable savename       {}
+    variable recent         [list]
     variable error_msg      {}
     variable show_mode      {}
     variable modified       {}
@@ -171,7 +171,7 @@ proc updateGUI {w filename} {
         set tEdit::filename $filename
         .m.help entryconfigure "File Details..." -state normal
         wm title . "$filename - tEdit"
-        recentAdd $filename
+        recentAdd $w $filename
     }
     $w edit reset
     $w edit modified 0
@@ -297,21 +297,12 @@ proc exitCommand {w} {
     if {[askSave $w] == 0} {exit 0}
 }
 
-proc recentAdd {filename} {
-    set recent [.l_recent get 0 end]
-    if {$filename ni $recent} {
-        .l_recent insert 0 $filename
-        .m.file entryconfigure "Recent Files..." -state normal
-        if {[llength $recent] == 5} {
-            grid .ysb_recent
-        }
+proc recentAdd {w filename} {
+    if {$filename ni $tEdit::recent} {
+        lappend tEdit::recent $filename
+        .m.file entryconfigure "Recent Files" -state normal
+        .m.file.recent add command -label $filename -command [list openFile $w $filename]
     }
-}
-
-proc recentOpen {w} {
-    if {[askSave $w] != 0} {return 2}
-    set filename [$w get active]
-    openFile $filename
 }
 
 proc undoRedo {w command} {
@@ -569,7 +560,7 @@ proc startBrowser {w} {
 proc openfileBrowser {w node} {
     if {[$w set $node type] eq "file"} {
         set path [$w set $node fullpath]
-        openFile $path
+        openFile .text $path
     } else {
         populateBrowser $w $node
     }
@@ -590,7 +581,6 @@ proc toggleView {w show} {
     } else {
         grid $w
         switch -- $w {
-            .lf_recent  {focus .l_recent}
             .f_search   {focus .cb_search}
             .lf_replace {focus .cb_replace}
         }
@@ -769,10 +759,9 @@ proc createMenus {} {
             .m.file add command -label "Save As..." -underline 5 \
                 -accelerator "Ctrl+Shift+S" -command {saveAs .text}
             .m.file add separator
-            .m.file add checkbutton -label "Recent Files..." -underline 0 \
-                -accelerator "F6" -state "disabled" \
-                -variable tEdit::show_recent -onvalue "true" -offvalue "false" \
-                -command {toggleView .lf_recent $tEdit::show_recent}
+            menu .m.file.recent -tearoff 0
+                .m.file add cascade -label "Recent Files" -underline 0 \
+                    -state disabled -menu .m.file.recent
             .m.file add separator
             .m.file add command -label "Exit" -underline 1 \
                 -accelerator "Ctrl+Q" -command {exitCommand .text}
@@ -938,18 +927,6 @@ proc createMenus {} {
 #
 proc createWidgets {} {
 
-    ttk::labelframe .lf_recent -borderwidth 1 -relief flat \
-        -text "Recently Opened Files:"
-        tk::listbox .l_recent -relief flat -height 5 -highlightthickness 0 \
-            -takefocus 0 -yscrollcommand {.ysb_recent set}
-        ttk::scrollbar .ysb_recent -orient vertical -command {.l_recent yview}
-        # grid recent file list and scrollbar in the labelframe
-        grid .l_recent      -in .lf_recent -row 0 -column 0 -sticky we
-        grid .ysb_recent    -in .lf_recent -row 0 -column 1 -sticky ns
-        grid columnconfigure .lf_recent .l_recent -weight 1
-        # remove scrollbar from view
-        grid remove .ysb_recent
-
     # create a paned window
     ttk::panedwindow .pane -orient horizontal
     # frame for the left pane
@@ -1072,13 +1049,12 @@ proc createWidgets {} {
         grid columnconfigure .f_statusbar .lb_message -weight 1
 
     # grid the three main frames in main window
-    grid .lf_recent     -in . -row 0 -column 0 -sticky news
-    grid .pane          -in . -row 1 -column 0 -sticky news
-    grid .f_statusbar   -in . -row 2 -column 0 -sticky we
+    grid .pane          -in . -row 0 -column 0 -sticky news
+    grid .f_statusbar   -in . -row 1 -column 0 -sticky we
     grid rowconfigure       . .pane -weight 1
     grid columnconfigure    . .pane -weight 1
-    # remove recent list and rearch frame from view
-    grid remove .lf_recent .f_search
+    # remove search frame from view
+    grid remove .f_search
 
     # add left and right panes to paned window
     .pane add .left_pane
@@ -1114,7 +1090,6 @@ proc createBindings {} {
     bind . <Control-o> {.m.file invoke "Open..."}
     bind . <Control-s> {.m.file invoke "Save"}
     bind . <Control-S> {.m.file invoke "Save As..."}
-    bind . <F6>        {.m.file invoke "Recent Files..."}
     bind . <Control-q> {.m.file invoke "Exit"}
     bind . <Control-Q> {exit}
     bind . <Control-z> {.m.edit invoke "Undo"}
@@ -1149,11 +1124,6 @@ proc createBindings {} {
     bind .text  <Control-ButtonRelease-1> {.m.marks invoke "Mark/Unmark"}
     bind .text  <3>                       {focus %W; tk_popup .m.edit %X %Y}
     bind .text  <Control-3>               {focus %W; tk_popup .m %X %Y}
-
-    # recent file list bindings
-    foreach keysym [list <Return> <Double-ButtonRelease-1>] {
-        bind .l_recent $keysym {recentOpen %W}
-    }
 
     # mark list bindings
     foreach keysym [list <Return> <Double-ButtonRelease-1>] {
