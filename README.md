@@ -1,7 +1,7 @@
 # tEdit
 **tEdit** is a simple text editor written in [Tcl/Tk](https://www.tcl.tk).
 
-Features:
+##### Features:
 * Word Wrap
 * Mark Lines
 * Line Spacing
@@ -13,6 +13,7 @@ Features:
 * Search/Replace supporting *Regular Expressions*
 * Tabbed ScratchPad
 * NerdTree like File Browser
+* Tk Themes
 * Customizable Colors and Fonts
 * Runs in GNU/Linux, MS-Windows and Unix (MacOS not tested)
 
