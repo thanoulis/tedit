@@ -9,10 +9,11 @@
 * Line Numbers
 * Custom Folding
 * Recent File List
-* Tabbed ScratchPad
 * File Browser Panel
+* Tabbed ScratchPad
 * Unlimited Undo/Redo
 * Customizable Tabstops
+* Command Line Open File
 * Safe Mode (Read Only Mode)
 * Customizable Colors and Fonts
 * Search/Replace with [Regular Expressions](https://www.tcl.tk/man/tcl/TclCmd/re_syntax.htm) support
