@@ -207,7 +207,7 @@ proc askSave {text} {
 }
 
 proc newFile {text} {
-    if {[askSave $w] != 0} {return 2}
+    if {[askSave $text] != 0} {return 2}
     if {$tEdit::read_only eq "true"} {.m.options invoke "Read Only"}
     $text delete 1.0 end
     updateGUI $text newfile
@@ -762,9 +762,9 @@ proc helpAbout {} {
         -title "About tEdit" -icon info -type ok \
         -message "tEdit" -detail \
 {A simple text editor,
-written in pure Tcl/Tk.
+written in core Tcl/Tk.
 
-The MIT License
+MIT License
 
 Copyright (c) Thanos Zygouris
 <athanasios.zygouris@gmail.com>}
@@ -1118,8 +1118,8 @@ proc createBindings {} {
         <Control-t> \
         <Control-z> \
         <Control-Z>]
-    foreach key $bindings {
-        bind Text $key {return}
+    foreach keysym $bindings {
+        bind Text $keysym {return}
     }
 
     # main window bindings
