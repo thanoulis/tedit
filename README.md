@@ -8,13 +8,14 @@
 * Line Spacing
 * Line Numbers
 * Custom Folding
+* Recent File List
+* Tabbed ScratchPad
+* File Browser Panel
 * Unlimited Undo/Redo
 * Customizable Tabstops
-* Safe Mode (read only)
-* Search/Replace with [Regular Expressions](https://www.tcl.tk/man/tcl/TclCmd/re_syntax.htm) support
-* Tabbed ScratchPad
-* NerdTree like File Browser
+* Safe Mode (Read Only Mode)
 * Customizable Colors and Fonts
+* Search/Replace with [Regular Expressions](https://www.tcl.tk/man/tcl/TclCmd/re_syntax.htm) support
 * Runs in GNU/Linux, MS-Windows and Unix (MacOS not tested)
 
 ### Screenshot
