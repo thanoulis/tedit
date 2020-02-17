@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=tEdit
+GenericName=Text Editor
+Comment=A simple text editor written in core Tcl/Tk
+Exec=tedit %F
+Icon=accessories-text-editor
+Type=Application
+Terminal=false
+Keywords=Text;Editor;
+Categories=Utility;TextEditor;
+StartupNotify=false
+MimeType=text/english;text/plain;text/x-makefile;text/x-c++hdr;text/x-c++src;text/x-chdr;text/x-csrc;text/x-java;text/x-moc;text/x-pascal;text/x-tcl;text/x-tex;application/x-shellscript;text/x-c;text/x-c++;
