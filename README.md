@@ -1,26 +1,27 @@
 # tEdit
-**tEdit** is a simple text editor written in core [Tcl/Tk](https://www.tcl.tk).
+**tEdit** is a simple tabbed text editor written in core [Tcl/Tk](https://www.tcl.tk).
 
 ##### Features:
-* Tk Themes
+* Tabs
 * Mark Lines
 * Word Wrap
-* Line Spacing
 * Line Numbers
 * Custom Folding
 * Recent File List
 * File Browser Panel
-* Tabbed ScratchPad
 * Unlimited Undo/Redo
-* Customizable Tabstops
-* Command Line Open File
-* Safe Mode (Read Only Mode)
-* Customizable Colors and Fonts
 * Search/Replace with [Regular Expressions](https://www.tcl.tk/man/tcl/TclCmd/re_syntax.htm) support
+* Tabs Menu (right mouse button)
+* Rearrange Tabs (middle mouse button drag/drop)
+* Tk Themes
+* Colors and Fonts
+* Customizable Tabstops
+* Line Spacing (above/below lines and wraps)
+* Command Line Support
 * Runs in GNU/Linux, MS-Windows and Unix (MacOS not tested)
 
 ### Screenshot
-![Screenshot](images/screenshot.png "Screenshot")
+![Screenshot](screenshot.png "Screenshot")
 
 
 ## DEPENDENCIES
