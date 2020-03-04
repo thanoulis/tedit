@@ -32,7 +32,8 @@ namespace eval tEdit {
   variable showlineno  {false}
   variable showyscroll {true}
   variable showxscroll {true}
-  variable tabstop     4
+  variable tabstop     2
+  variable tabs2spaces {true}
   variable spacing1    0
   variable spacing2    0
   variable spacing3    0
@@ -637,13 +638,15 @@ proc toggleView {w show} {
   }
 }
 
-proc setSpacing {type spacing} {
+proc setTabstop {tabs2spaces tabstop} {
   append text [.nb select] ".text"
-  $text configure $type $spacing
-}
-
-proc setTabstop {tabstop} {
-  append text [.nb select] ".text"
+  if {$tabs2spaces eq "true"} {
+    bind $text <Tab> [list $text insert insert [string repeat " " $tEdit::tabstop]]
+    bind $text <ISO_Left_Tab> [list $text insert insert [string repeat " " $tEdit::tabstop]]
+  } else {
+    bind $text <Tab> [list $text insert insert "\t"]
+    bind $text <ISO_Left_Tab> [list $text insert insert "\t"]
+  }
   $text configure -tabs "[expr {$tabstop * [font measure [$text cget -font] 0]}] left"
 }
 
@@ -657,6 +660,11 @@ proc setFont {tabstop} {
     -font [$text cget -font] -command [list selectFont $text]
   tk fontchooser show
   $text configure -tabs "[expr {$tabstop * [font measure [$text cget -font] 0]}] left"
+}
+
+proc setSpacing {type spacing} {
+  append text [.nb select] ".text"
+  $text configure $type $spacing
 }
 
 proc colorScheme {colors} {
@@ -754,7 +762,7 @@ proc focusTab {tab} {
   $text configure -blockcursor $tEdit::blockcursor
   toggleView [.nb select].yscroll $tEdit::showyscroll
   toggleView [.nb select].xscroll $tEdit::showxscroll
-  setTabstop $tEdit::tabstop
+  setTabstop $tEdit::tabs2spaces $tEdit::tabstop
   setSpacing -spacing1 $tEdit::spacing1
   setSpacing -spacing2 $tEdit::spacing2
   setSpacing -spacing3 $tEdit::spacing3
@@ -950,32 +958,25 @@ proc createMenus {} {
     .menu.options add separator
     .menu.options add command -label "Set Font..." -underline 4 \
       -command {setFont $tEdit::tabstop}
-    .menu.options add cascade -label "Tab Stops" -underline 0 \
-      -menu [menu .menu.options.tabstop]
-      foreach i [list 2 3 4 6 8] {
-        .menu.options.tabstop add radiobutton -label $i -underline 0 \
-          -variable tEdit::tabstop -value $i \
-          -command {setTabstop $tEdit::tabstop}
-      }
     .menu.options add cascade -label "Line Spacing" -underline 0 \
       -menu [menu .menu.options.spacing]
       .menu.options.spacing add cascade -label "Space Above Lines" -underline 6 \
         -menu [menu .menu.options.spacing.1]
-        for {set i 0} {$i <= 5} {incr i} {
+        for {set i 0} {$i <= 9} {incr i} {
           .menu.options.spacing.1 add radiobutton -label $i -underline 0 \
             -variable tEdit::spacing1 -value $i \
             -command {setSpacing -spacing1 $tEdit::spacing1}
         }
       .menu.options.spacing add cascade -label "Space Between Warps" -underline 9 \
         -menu [menu .menu.options.spacing.2]
-        for {set i 0} {$i <= 5} {incr i} {
+        for {set i 0} {$i <= 9} {incr i} {
           .menu.options.spacing.2 add radiobutton -label $i -underline 0 \
             -variable tEdit::spacing2 -value $i \
             -command {setSpacing -spacing2 $tEdit::spacing2}
         }
       .menu.options.spacing add cascade -label "Space Below Lines" -underline 6 \
         -menu [menu .menu.options.spacing.3]
-        for {set i 0} {$i <= 5} {incr i} {
+        for {set i 0} {$i <= 9} {incr i} {
           .menu.options.spacing.3 add radiobutton -label $i -underline 0 \
             -variable tEdit::spacing3 -value $i \
             -command {setSpacing -spacing3 $tEdit::spacing3}
@@ -988,7 +989,6 @@ proc createMenus {} {
         -variable tEdit::colors -value $i \
         -command {colorScheme $tEdit::colors}
       }
-    .menu.options add separator
     .menu.options add cascade -label "Themes" -underline 0 \
       -menu [menu .menu.options.themes]
       foreach theme [ttk::style theme names] {
@@ -996,6 +996,17 @@ proc createMenus {} {
           -variable tEdit::theme -value $theme \
           -command [list ttk::style theme use $theme]
       }
+    .menu.options add separator
+    .menu.options add cascade -label "Tab Stops" -underline 0 \
+      -menu [menu .menu.options.tabstop]
+      foreach i [list 2 4 6 7 8] {
+        .menu.options.tabstop add radiobutton -label $i -underline 0 \
+          -variable tEdit::tabstop -value $i \
+          -command {setTabstop $tEdit::tabs2spaces $tEdit::tabstop}
+      }
+    .menu.options add checkbutton -label "Tabs to Spaces" -underline 8 \
+      -variable tEdit::tabs2spaces -onvalue "true" -offvalue "false" \
+      -command {setTabstop $tEdit::tabs2spaces $tEdit::tabstop}
   .menu add cascade -label "Help" -underline 0 -menu [menu .menu.help]
     .menu.help add command -label "System Details..." -underline 0 \
       -command {systemDetails}
@@ -1154,6 +1165,8 @@ proc createWidgets {} {
 proc createBindings {} {
   # deactivate some predefined bindings from Text widget
   set bindings [list \
+    <Tab> \
+    <ISO_Left_Tab> \
     <Control-a> \
     <Control-f> \
     <Control-o> \
