@@ -179,7 +179,7 @@ proc openFile {filename} {
     return 1
   }
   if [catch {set fh [open $filename r]} msg] {
-    puts stderr [lindex [split $msg :] 1]
+    puts stderr $msg
     showMessage [lindex [split $msg :] 1]
     return 1
   }
@@ -200,7 +200,9 @@ proc storeFilename {filename} {
 }
 
 proc saveFileDialog {} {
-  set filename [tk_getSaveFile -title "Save As" -parent . -filetypes $tEdit::filetypes]
+  set tabname [.nb tab [.nb select] -text]
+  set filename [tk_getSaveFile -title "Save As" -parent . \
+    -filetypes $tEdit::filetypes -initialfile $tabname]
   if {$filename eq ""} {return 2}
   if {[file exists $filename]} {
     if {[file type $filename] ne "file"} {
@@ -234,7 +236,7 @@ proc saveFile {filename text} {
     }
   }
   if [catch {set fh [open $filename w]} msg] {
-    puts stderr [lindex [split $msg :] 1]
+    puts stderr $msg
     showMessage [lindex [split $msg :] 1]
     return 1
   }
@@ -320,6 +322,7 @@ proc startBrowser {{tree ".tree"}} {
 }
 
 proc openFileBrowser {node {tree ".tree"}} {
+  if {$node eq ""} {return 0}
   if {[$tree set $node type] eq "directory"} {
     populateBrowser $node $tree
   } else {
