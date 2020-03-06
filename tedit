@@ -15,10 +15,15 @@ namespace eval tEdit {
   variable untitledno  1
   variable message     {}
   variable savename    {}
-  variable filetypes   {{{All Files} {**}} {{Text Files} {*.txt}}\
-    {{Log Files} {*.log}} {{C Files} {*.c}} {{C++ Files} {*.cpp}}\
-    {{Header Files} {*.h}} {{Tcl Scripts} {*.tcl}} {{Perl Scripts} {*.pl}}\
-    {{Python Sripts} {*.py}}\
+  variable filetypes   {{{All Files} {*}}\
+    {{Text Files} {*.txt *.TXT}} {{Log Files} {*.log *.LOG}}\
+    {{C Files} {*.c *.C}} {{C++ Files} {*.cpp *.CPP}} {{Header Files} {*.h *.H}}\
+    {{Go Files} {*.go *.GO}}\
+    {{Perl Files} {*.pl *.PL}} {{Perl Modules} {*.pm *.PM}}\
+    {{Python Files} {*.py *.PY}}\
+    {{Ruby Files} {*.rb *.RB}}\
+    {{Rust Files} {*.rs *.RS}}\
+    {{Tcl Files} {*.tcl *.TCL}}\
   }
   variable browser     {false}
   variable recent      [list]
@@ -643,12 +648,17 @@ proc toggleView {w show} {
 
 proc setTabstop {tabs2spaces tabstop} {
   append text [.nb select] ".text"
+  foreach keysym {<Control-Tab> <Control-Shift-Tab> <Control-ISO_Left_Tab>} {
+    bind $text $keysym {return 0}
+  }
   if {$tabs2spaces eq "true"} {
-    bind $text <Tab> [list $text insert insert [string repeat " " $tEdit::tabstop]]
-    bind $text <ISO_Left_Tab> [list $text insert insert [string repeat " " $tEdit::tabstop]]
+    foreach keysym {<Tab> <ISO_Left_Tab>} {
+      bind $text $keysym [list $text insert insert [string repeat " " $tEdit::tabstop]]
+    }
   } else {
-    bind $text <Tab> [list $text insert insert "\t"]
-    bind $text <ISO_Left_Tab> [list $text insert insert "\t"]
+    foreach keysym {<Tab> <ISO_Left_Tab>} {
+      bind $text $keysym [list $text insert insert "\t"]
+    }
   }
   $text configure -tabs "[expr {$tabstop * [font measure [$text cget -font] 0]}] left"
 }
@@ -1169,7 +1179,10 @@ proc createBindings {} {
   # deactivate some predefined bindings from Text widget
   set bindings [list \
     <Tab> \
+    <Control-Tab> \
+    <Control-Shift-Tab> \
     <ISO_Left_Tab> \
+    <Control-ISO_Left_Tab> \
     <Control-a> \
     <Control-f> \
     <Control-o> \
@@ -1272,7 +1285,6 @@ ttk::style layout TNotebook.Tab {
     }
   }
 }
-
 
 ################################################################################
 # MAIN PROGRAM
