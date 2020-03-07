@@ -177,14 +177,14 @@ proc openFile {filename} {
       -detail "$filename\nis a [file type $filename]."
     return 1
   }
-  if [catch {set fh [open $filename r]} msg] {
+  if [catch {set data [open $filename r]} msg] {
     puts stderr $msg
     showMessage [lindex [split $msg :] 1]
     return 1
   }
   set text [newTab [.nb index current] $filename]
-  $text replace 0.0 end [read -nonewline $fh]
-  close $fh
+  $text replace 0.0 end [read -nonewline $data]
+  close $data
   $text mark set insert 0.0
   $text see insert
   $text edit modified 0
@@ -234,13 +234,13 @@ proc saveFile {filename text} {
       return 2
     }
   }
-  if [catch {set fh [open $filename w]} msg] {
+  if [catch {set data [open $filename w]} msg] {
     puts stderr $msg
     showMessage [lindex [split $msg :] 1]
     return 1
   }
-  puts -nonewline $fh [$text get 0.0 end]
-  close $fh
+  puts -nonewline $data [$text get 0.0 end]
+  close $data
   $text edit modified 0
   storeFilename $filename
   recentAdd $filename
@@ -740,6 +740,34 @@ proc colorScheme {colors} {
     -background $color(highlight)
 }
 
+proc base64Encode {} {
+  set filename [tk_getOpenFile -title "Select File to Encode" -parent . \
+    -multiple no]
+  if {$filename eq ""} {return 2}
+  if {[file type $filename] ne "file"} {
+    puts stderr "Cannot open: $filename is [file type $filename]"
+    tk_messageBox -title "Cannot open file!" -icon error -type ok -parent . \
+      -message "Cannot open file:" \
+      -detail "$filename\nis a [file type $filename]."
+    return 1
+  }
+  if [catch {set data [open $filename r]} msg] {
+    puts stderr $msg
+    showMessage [lindex [split $msg :] 1]
+    return 1
+  }
+  fconfigure $data -translation binary
+  set encoded [binary encode base64 -maxlen 75 [read -nonewline $data]]
+  close $data
+  set text [newTab [.nb index current] "${filename}.b64"]
+  $text replace 0.0 end $encoded
+  $text mark set insert 0.0
+  $text see insert
+  $text edit modified 0
+  $text edit reset
+  showMessage "Encoding finished"
+}
+
 proc focusTab {tab} {
   set tEdit::filepath $tEdit::filename($tab)
   append text $tab ".text"
@@ -879,6 +907,9 @@ proc createMenus {} {
     .menu.file add separator
       .menu.file add cascade -label "Recent Files" -underline 0 \
         -state disabled -menu [menu .menu.file.recent]
+    .menu.file add separator
+    .menu.file add command -label "Base64 Encode..." -underline 7 \
+      -accelerator "Ctrl+E" -command {base64Encode}
     .menu.file add separator
     .menu.file add command -label "Close All" -underline 0 \
       -accelerator "Ctrl+Q" -command {closeAll}
@@ -1175,6 +1206,8 @@ proc createBindings {} {
     <ISO_Left_Tab> \
     <Control-ISO_Left_Tab> \
     <Control-a> \
+    <Control-b> \
+    <Control-e> \
     <Control-f> \
     <Control-o> \
     <Control-t> \
@@ -1195,6 +1228,7 @@ proc createBindings {} {
   bind . <Control-o>  {.menu.file invoke "Open..."}
   bind . <Control-s>  {.menu.file invoke "Save"}
   bind . <Control-S>  {.menu.file invoke "Save As..."}
+  bind . <Control-e>  {.menu.file invoke "Base64 Encode..."}
   bind . <Control-q>  {.menu.file invoke "Close All"}
   bind . <Control-Q>  {.menu.file invoke "Exit"}
   bind . <Control-z>  {.menu.edit invoke "Undo"}
