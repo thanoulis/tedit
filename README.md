@@ -17,6 +17,7 @@
 * Colors and Fonts
 * Customizable Tabstops
 * Line Spacing (above/below lines and wraps)
+* Base64 Encoder
 * Command Line Support
 * Runs in GNU/Linux, MS-Windows and Unix (MacOS not tested)
 
