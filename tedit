@@ -15,15 +15,15 @@ namespace eval tEdit {
   variable untitledno  1
   variable message     {}
   variable savename    {}
-  variable filetypes   {{{All Files} {*}}\
-    {{Text Files} {*.txt *.TXT}} {{Log Files} {*.log *.LOG}}\
-    {{C Files} {*.c *.C}} {{C++ Files} {*.cpp *.CPP}} {{Header Files} {*.h *.H}}\
-    {{Go Files} {*.go *.GO}}\
-    {{Perl Files} {*.pl *.PL}} {{Perl Modules} {*.pm *.PM}}\
-    {{Python Files} {*.py *.PY}}\
-    {{Ruby Files} {*.rb *.RB}}\
-    {{Rust Files} {*.rs *.RS}}\
-    {{Tcl Files} {*.tcl *.TCL}}\
+  variable filetypes   {{{All Files} {*}}
+    {{Text Files} {*.txt *.TXT}} {{Log Files} {*.log *.LOG}}
+    {{C Files} {*.c *.C}} {{C++ Files} {*.cpp *.CPP}} {{Header Files} {*.h *.H}}
+    {{Go Files} {*.go *.GO}}
+    {{Perl Files} {*.pl *.PL}} {{Perl Modules} {*.pm *.PM}}
+    {{Python Files} {*.py *.PY}}
+    {{Ruby Files} {*.rb *.RB}}
+    {{Rust Files} {*.rs *.RS}}
+    {{Tcl Files} {*.tcl *.TCL}}
   }
   variable browser     {false}
   variable recent      [list]
@@ -125,12 +125,6 @@ proc newTab {{position ""} {filename ""}} {
     # remove canvas from view
     grid remove $tab(canvas)
 
-  # text widget bindings
-  bind $tab(text) <<Modified>> {setModified %W}
-  bind $tab(text) <3>          {focus %W; tk_popup .menu.edit %X %Y}
-  bind $tab(text) <Control-3>  {focus %W; tk_popup .menu %X %Y}
-  bind $tab(text) <Control-ButtonRelease-1> {.menu.marks invoke "Mark Toggle"}
-
   if {$filename eq ""} {
     set filename "Untitled $tEdit::untitledno"
     incr tEdit::untitledno
@@ -139,7 +133,7 @@ proc newTab {{position ""} {filename ""}} {
   }
   if {$position eq ""} {
     set position end
-  } elseif {[expr $position + 1] >= [$nb index end]} {
+  } elseif {[expr {$position + 1}] >= [$nb index end]} {
     set position end
   } else {
     incr position
@@ -619,11 +613,11 @@ proc toggleLineNumbers {show} {
   append canvas [.nb select] ".canvas"
   append text [.nb select] ".text"
   if {$show eq "true"} {
-    bind $text <Configure> [list lineNumbers $text $canvas]
+    bind Text <Configure> [list lineNumbers $text $canvas]
     trace add execution $text leave [list lineNumbers $text $canvas]
     grid $canvas
   } else {
-    bind $text <Configure> {return}
+    bind Text <Configure> {return}
     trace remove execution $text leave [list lineNumbers $text $canvas]
     grid remove $canvas
   }
@@ -648,16 +642,13 @@ proc toggleView {w show} {
 
 proc setTabstop {tabs2spaces tabstop} {
   append text [.nb select] ".text"
-  foreach keysym {<Control-Tab> <Control-Shift-Tab> <Control-ISO_Left_Tab>} {
-    bind $text $keysym {return 0}
-  }
   if {$tabs2spaces eq "true"} {
     foreach keysym {<Tab> <ISO_Left_Tab>} {
-      bind $text $keysym [list $text insert insert [string repeat " " $tEdit::tabstop]]
+      bind Text $keysym [list $text insert insert [string repeat " " $tEdit::tabstop]]
     }
   } else {
     foreach keysym {<Tab> <ISO_Left_Tab>} {
-      bind $text $keysym [list $text insert insert "\t"]
+      bind Text $keysym [list $text insert insert "\t"]
     }
   }
   $text configure -tabs "[expr {$tabstop * [font measure [$text cget -font] 0]}] left"
@@ -811,7 +802,7 @@ proc nextTab {{nb ".nb"}} {
 proc prevTab {{nb ".nb"}} {
   set tabid [$nb index current]
   incr tabid -1
-  if {$tabid < 0} {set tabid [expr [$nb index end] - 1]}
+  if {$tabid < 0} {set tabid [expr {[$nb index end] - 1}]}
   $nb select $tabid
 }
 
@@ -1192,6 +1183,12 @@ proc createBindings {} {
   foreach keysym $bindings {
     bind Text $keysym {return 0}
   }
+  # text widget bindings
+  bind Text <<Modified>> {setModified %W}
+  bind Text <3>          {focus %W; tk_popup .menu.edit %X %Y}
+  bind Text <Control-3>  {focus %W; tk_popup .menu %X %Y}
+  bind Text <Control-ButtonRelease-1> {.menu.marks invoke "Mark Toggle"}
+
   # main window bindings
   bind . <Control-t>  {.menu.file invoke "New Tab"}
   bind . <Control-F4> {.menu.file invoke "Close Tab"}
@@ -1226,10 +1223,10 @@ proc createBindings {} {
     }
   }
   # make Return and Keypad-Enter keys behave the same
-  bind . <KP_Enter> {event generate %W <Return>}
+  bind all <KP_Enter> {event generate %W <Return>}
 
   # treeview widget bindings
-  foreach keysym [list <Return> <Double-ButtonRelease-1>] {
+  foreach keysym {<Return> <Double-ButtonRelease-1>} {
     bind .tree $keysym {openFileBrowser [%W focus] %W}
   }
   bind .tree <<TreeviewOpen>> {populateBrowser [%W focus] %W}
@@ -1266,7 +1263,6 @@ proc createBindings {} {
   bind .cbreplace <Return> {.breplace invoke}
   bind .cbsearch  <Return> {.bfindnext invoke}
   bind .cbsearch <<ComboboxSelected>> {.bfindnext invoke}
-
 }
 
 ################################################################################
