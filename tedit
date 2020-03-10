@@ -9,10 +9,10 @@ namespace eval tEdit {
   array set filename   {}
   array set folds      {}
   array set marks      {}
-  array set markno     {}
+  array set marknum    {}
 
-  variable tabno       0
-  variable untitledno  1
+  variable tabnum      0
+  variable untitlednum 1
   variable message     {}
   variable savename    {}
   variable filetypes   {{{All Files} {*}}
@@ -34,7 +34,7 @@ namespace eval tEdit {
   variable blockcursor {false}
   variable showmarks   {false}
   variable showstatus  {true}
-  variable showlineno  {false}
+  variable linenumbers {false}
   variable showyscroll {true}
   variable showxscroll {true}
   variable tabstop     2
@@ -78,22 +78,22 @@ proc setModified {text} {
 
 proc newTab {{position ""} {filename ""}} {
   set nb .nb
-  set tabno $tEdit::tabno
+  set tabnum $tEdit::tabnum
   # set array for tabbed widgets
   array set tab [list\
-    {tab}      "$nb.$tabno"\
-    {canvas}   "$nb.$tabno.canvas"\
-    {text}     "$nb.$tabno.text"\
-    {yscroll}  "$nb.$tabno.yscroll"\
-    {xscroll}  "$nb.$tabno.xscroll"\
+    {tab}      "$nb.$tabnum"\
+    {canvas}   "$nb.$tabnum.canvas"\
+    {text}     "$nb.$tabnum.text"\
+    {yscroll}  "$nb.$tabnum.yscroll"\
+    {xscroll}  "$nb.$tabnum.xscroll"\
   ]
   # set arrays specific to this tab
   array set tEdit::filename [list $tab(tab) $filename]
   array set tEdit::folds    [list $tab(text) [list]]
   array set tEdit::marks    [list $tab(text) [list]]
-  array set tEdit::markno   [list $tab(text) 0]
+  array set tEdit::marknum  [list $tab(text) 0]
   # increase tab number for future use
-  incr tEdit::tabno
+  incr tEdit::tabnum
 
   ttk::frame $tab(tab)
     tk::canvas $tab(canvas) -width 50 -highlightthickness 0 -background "#ffff00"
@@ -122,8 +122,8 @@ proc newTab {{position ""} {filename ""}} {
     grid remove $tab(canvas)
 
   if {$filename eq ""} {
-    set filename "Untitled $tEdit::untitledno"
-    incr tEdit::untitledno
+    set filename "Untitled $tEdit::untitlednum"
+    incr tEdit::untitlednum
   } else {
     set filename [file tail $filename]
   }
@@ -508,7 +508,7 @@ proc markToggle {} {
       showMessage "cannot mark: empty line"
       return 1
     }
-    append mark "Mark#" [incr tEdit::markno($text)]
+    append mark "Mark#" [incr tEdit::marknum($text)]
     $text mark set $mark $linenum.0
     $text tag configure $mark -underline true
     $text tag raise $mark sel
@@ -531,6 +531,7 @@ proc markSee {} {
   }
   $text mark set insert $mark
   $text see $mark
+  focus $text
 }
 
 proc markNext {} {
@@ -563,7 +564,7 @@ proc markDelete {which} {
         $text tag delete $mark
       }
       set tEdit::marks($text) [list]
-      set tEdit::markno($text) 0
+      set tEdit::marknum($text) 0
     }
     active {
       set mark [$markbox get active]
@@ -781,9 +782,9 @@ proc focusTab {tab} {
   setSpacing -spacing3 $tEdit::spacing3
   colorScheme $tEdit::colors
   if {[trace info execution $text] eq ""} {
-    set tEdit::showlineno "false"
+    set tEdit::linenumbers "false"
   } else {
-    set tEdit::showlineno "true"
+    set tEdit::linenumbers "true"
   }
 }
 
@@ -941,8 +942,8 @@ proc createMenus {} {
       -command {toggleBrowser $tEdit::browser}
     .menu.show add separator
     .menu.show add checkbutton -label "Line Numbers" -underline 5 \
-      -variable tEdit::showlineno -onvalue "true" -offvalue "false" \
-      -command {toggleLineNumbers $tEdit::showlineno}
+      -variable tEdit::linenumbers -onvalue "true" -offvalue "false" \
+      -command {toggleLineNumbers $tEdit::linenumbers}
     .menu.show add separator
     .menu.show add checkbutton -label "Menu Bar" -underline 0 \
       -variable tEdit::showmenu -onvalue ".menu" -offvalue {} \
