@@ -599,7 +599,7 @@ proc lineNumbers {text canvas args} {
       set height [lindex $dline 3]
       set y [lindex $dline 1]
       set linenum [lindex [split $i .] 0]
-      $canvas create text 0 $y -anchor nw -text $linenum \
+      $canvas create text 2 $y -anchor nw -text $linenum \
         -font [$text cget -font] -fill [$text cget -foreground]
       set i [$text index "$i + 1 line"]
     }
