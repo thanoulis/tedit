@@ -54,10 +54,6 @@ namespace eval tEdit {
   variable hreplace    [list]
   variable showsearch  {}
   variable showreplace {false}
-
-  variable imgXButton  [image create photo -format gif -data {
-    R0lGODlhBwAHAIABAP8AAP///yH5BAEKAAEALAAAAAAHAAcAAAIMBIKmsWrIXnLxuDMLADs=
-  }]
 }
 
 ################################################################################
@@ -819,12 +815,6 @@ proc prevTab {{nb ".nb"}} {
   $nb select $tabid
 }
 
-proc closeTabButton {W x y} {
-  if {[$W identify $x $y] == "CloseButton"} {
-    closeTab [lindex [$W tabs] [$W index @$x,$y]]
-  }
-}
-
 proc dragTab {W x y} {
   $W configure -cursor "hand2"
   variable from [$W index @$x,$y]
@@ -842,6 +832,7 @@ proc dropTab {W x y} {
       $W insert $to $tab
     }
   }
+  focus [.nb select].text
 }
 
 proc systemDetails {} {
@@ -1251,22 +1242,18 @@ proc createBindings {} {
   bind .tree <<TreeviewOpen>> {populateBrowser [%W focus] %W}
 
   # notebook bindings
-  # on tab change reload user settings (except font)
-  bind .nb <<NotebookTabChanged>> {
-    focusTab [.nb select]
-  }
-  # close tab on red cross click
-  bind .nb <1> {closeTabButton %W %x %y}
+  # on tab change reload user settings (except font and line numbering)
+  bind .nb <<NotebookTabChanged>> {focusTab [.nb select]}
   # popup menu on tab labels
   bind .nb <3> {tabsMenu %W %x %y %X %Y}
   # mouse wheel rotate tabs
   bind .nb <4> {nextTab}
   bind .nb <5> {prevTab}
   # drag and drop tab replacement
+  bind .nb <ButtonPress-1>           {dragTab %W %x %y}
+  bind .nb <ButtonRelease-1>         {dropTab %W %x %y}
   bind .nb <Control-ButtonPress-1>   {dragTab %W %x %y}
   bind .nb <Control-ButtonRelease-1> {dropTab %W %x %y}
-  bind .nb <ButtonPress-2>           {dragTab %W %x %y}
-  bind .nb <ButtonRelease-2>         {dropTab %W %x %y}
 
   # mark list bindings
   foreach keysym [list <Return> <Double-ButtonRelease-1>] {
@@ -1275,7 +1262,7 @@ proc createBindings {} {
   bind .marks <Delete> {markDelete active}
 
   # search & replace combobox bindings
-  foreach combobox [list .cbsearch .cbreplace] {
+  foreach combobox {.cbsearch .cbreplace} {
     bind $combobox <3>      {focus %W; tk_popup .menusearch %X %Y}
     bind $combobox <Escape> {.menu.search invoke "Show Search"}
   }
@@ -1289,17 +1276,6 @@ proc createBindings {} {
 #
 ttk::style configure white.TCombobox -fieldbackground white
 ttk::style configure red.TCombobox   -fieldbackground red
-
-ttk::style element create CloseButton image $tEdit::imgXButton \
-  -height 8 -width 8 -sticky e
-
-ttk::style layout TNotebook.Tab {
-  Notebook.tab -sticky nswe -children {
-    Notebook.padding -expand 1 -sticky nswe -children {
-      Notebook.label -expand 1 -sticky nswe -side left CloseButton -side right
-    }
-  }
-}
 
 ################################################################################
 # MAIN PROGRAM
