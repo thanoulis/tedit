@@ -686,6 +686,14 @@ proc colorScheme {colors} {
         {background} {#000000}\
         ]
     }
+    blue {
+      array set color [list \
+        {cursor}     {#FFFF00}\
+        {highlight}  {#444444}\
+        {foreground} {#FFFF00}\
+        {background} {#0000FF}\
+        ]
+    }
     brownsugar {
       array set color [list \
         {cursor}     {#FF9999}\
@@ -716,6 +724,14 @@ proc colorScheme {colors} {
         {highlight}  {#ded494}\
         {foreground} {#222200}\
         {background} {#ca607b}\
+        ]
+    }
+    sugar {
+      array set color [list \
+        {cursor}     {#000000}\
+        {highlight}  {#FFFF00}\
+        {foreground} {#000000}\
+        {background} {#EEEEEE}\
         ]
     }
     default {
@@ -1013,9 +1029,9 @@ proc createMenus {} {
             -command {setSpacing -spacing3 $tEdit::spacing3}
         }
     .menu.options add separator
-    .menu.options add cascade -label "Colors" -underline 0 \
+    .menu.options add cascade -label "Colorscheme" -underline 0 \
       -menu [menu .menu.options.colors]
-      foreach i [list amber black brownsugar default gray green salmon] {
+      foreach i {amber black blue brownsugar default gray green salmon sugar} {
         .menu.options.colors add radiobutton -label $i \
         -variable tEdit::colors -value $i \
         -command {colorScheme $tEdit::colors}
