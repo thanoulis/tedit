@@ -667,83 +667,56 @@ proc setSpacing {type spacing} {
   $text configure $type $spacing
 }
 
-proc colorScheme {colors} {
+proc colorScheme {colorscheme} {
   append text [.nb select] ".text"
-  switch -- $colors {
+  switch -- $colorscheme {
     amber {
-      array set color [list \
-        {cursor}     {#FFBF00}\
-        {highlight}  {#0000FF}\
-        {foreground} {#FFBF00}\
-        {background} {#000000}\
-        ]
+      array set color {
+        {highlight} "#0000FF" {foreground} "#FFBF00" {background} "#000000"
+      }
     }
     black {
-      array set color [list \
-        {cursor}     {#C0C0C0}\
-        {highlight}  {#0000FF}\
-        {foreground} {#C0C0C0}\
-        {background} {#000000}\
-        ]
+      array set color {
+        {highlight} "#0000FF" {foreground} "#C0C0C0" {background} "#000000"
+      }
     }
     blue {
-      array set color [list \
-        {cursor}     {#FFFF00}\
-        {highlight}  {#444444}\
-        {foreground} {#FFFF00}\
-        {background} {#0000FF}\
-        ]
+      array set color {
+        {highlight} "#444444" {foreground} "#FFFF00" {background} "#0000FF"
+      }
     }
     brownsugar {
-      array set color [list \
-        {cursor}     {#FF9999}\
-        {highlight}  {#000000}\
-        {foreground} {#FF9999}\
-        {background} {#472400}\
-        ]
+      array set color {
+        {highlight} "#000000" {foreground} "#FF9999" {background} "#472400"
+      }
     }
     gray {
-      array set color [list \
-        {cursor}     {#D6D6D6}\
-        {highlight}  {#0000FF}\
-        {foreground} {#D6D6D6}\
-        {background} {#4E4E4E}\
-        ]
+      array set color {
+        {highlight} "#0000FF" {foreground} "#D6D6D6" {background} "#4E4E4E"
+      }
     }
     green {
-      array set color [list \
-        {cursor}     {#00FF00}\
-        {highlight}  {#0000FF}\
-        {foreground} {#00FF00}\
-        {background} {#000000}\
-        ]
+      array set color {
+        {highlight} "#0000FF" {foreground} "#00FF00" {background} "#000000"
+      }
     }
     salmon {
-      array set color [list \
-        {cursor}     {#222200}\
-        {highlight}  {#ded494}\
-        {foreground} {#222200}\
-        {background} {#ca607b}\
-        ]
+      array set color {
+        {highlight} "#DED494" {foreground} "#222200" {background} "#CA607B"
+      }
     }
     sugar {
-      array set color [list \
-        {cursor}     {#000000}\
-        {highlight}  {#FFFF00}\
-        {foreground} {#000000}\
-        {background} {#EEEEEE}\
-        ]
+      array set color {
+        {highlight} "#FFFF00" {foreground} "#000000" {background} "#EEEEEE"
+      }
     }
     default {
-      array set color [list \
-        {cursor}     {#000000}\
-        {highlight}  {#FFFF00}\
-        {foreground} {#000000}\
-        {background} {#FFFFFF}\
-        ]
+      array set color {
+        {highlight} "#FFFF00" {foreground} "#000000" {background} "#FFFFFF"
+      }
     }
   }
-  $text configure -insertbackground $color(cursor)
+  $text configure -insertbackground $color(foreground)
   $text configure -foreground $color(foreground)
   $text configure -background $color(background)
   $text tag configure tag_search -foreground $color(highlight) \
@@ -1031,9 +1004,9 @@ proc createMenus {} {
     .menu.options add separator
     .menu.options add cascade -label "Colorscheme" -underline 0 \
       -menu [menu .menu.options.colors]
-      foreach i {amber black blue brownsugar default gray green salmon sugar} {
-        .menu.options.colors add radiobutton -label $i \
-        -variable tEdit::colors -value $i \
+      foreach colorscheme {amber black blue brownsugar default gray green salmon sugar} {
+        .menu.options.colors add radiobutton -label $colorscheme \
+        -variable tEdit::colors -value $colorscheme \
         -command {colorScheme $tEdit::colors}
       }
     .menu.options add cascade -label "Themes" -underline 0 \
