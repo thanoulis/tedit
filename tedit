@@ -672,47 +672,47 @@ proc colorScheme {colorscheme} {
   switch -- $colorscheme {
     amber {
       array set color {
-        {highlight} "#0000FF" {foreground} "#FFBF00" {background} "#000000"
+        foreground "#FFBF00" background "#000000" highlight "#0000FF"
       }
     }
     black {
       array set color {
-        {highlight} "#0000FF" {foreground} "#C0C0C0" {background} "#000000"
+        foreground "#C0C0C0" background "#000000" highlight "#0000FF"
       }
     }
     blue {
       array set color {
-        {highlight} "#444444" {foreground} "#FFFF00" {background} "#0000FF"
+        foreground "#FFFF00" background "#0000FF" highlight "#444444"
       }
     }
     brownsugar {
       array set color {
-        {highlight} "#000000" {foreground} "#FF9999" {background} "#472400"
+        foreground "#FF9999" background "#472400" highlight "#000000"
       }
     }
     gray {
       array set color {
-        {highlight} "#0000FF" {foreground} "#D6D6D6" {background} "#4E4E4E"
+        foreground "#D6D6D6" background "#4E4E4E" highlight "#0000FF"
       }
     }
     green {
       array set color {
-        {highlight} "#0000FF" {foreground} "#00FF00" {background} "#000000"
+        foreground "#00FF00" background "#000000" highlight "#0000FF"
       }
     }
     salmon {
       array set color {
-        {highlight} "#DED494" {foreground} "#222200" {background} "#CA607B"
+        foreground "#222200" background "#CA607B" highlight "#DED494"
       }
     }
     sugar {
       array set color {
-        {highlight} "#FFFF00" {foreground} "#000000" {background} "#EEEEEE"
+        foreground "#000000" background "#EEEEEE" highlight "#FFFF00"
       }
     }
     default {
       array set color {
-        {highlight} "#FFFF00" {foreground} "#000000" {background} "#FFFFFF"
+        foreground "#000000" background "#FFFFFF" highlight "#FFFF00"
       }
     }
   }
