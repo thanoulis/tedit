@@ -54,6 +54,8 @@ namespace eval tEdit {
   variable hreplace    [list]
   variable showsearch  {}
   variable showreplace {false}
+
+  variable dndstart    {}
 }
 
 ################################################################################
@@ -795,9 +797,9 @@ proc tabsMenu {W x y X Y} {
     -command [list newTab [lindex [$W index @$x,$y]]]
   .menutabs insert 1 command -label "Close Tab" -underline 0 \
     -command [list closeTab [lindex [$W tabs] [$W index @$x,$y]]]
-  foreach tabid [.nb tabs] {
-    set tabname [.nb tab $tabid -text]
-    .menutabs.goto add command -label $tabname -command ".nb select $tabid"
+  foreach tabid [$W tabs] {
+    set tabname [$W tab $tabid -text]
+    .menutabs.goto add command -label $tabname -command " $W select $tabid"
   }
   tk_popup .menutabs $X $Y
 }
@@ -816,24 +818,47 @@ proc prevTab {{nb ".nb"}} {
   $nb select $tabid
 }
 
-proc dragTab {W x y} {
-  $W configure -cursor "hand2"
-  variable from [$W index @$x,$y]
+proc dragTab {W x y X Y} {
+  set tEdit::dndstart [$W index @$x,$y]
+  # check for a valid start
+  if {[string is integer -strict $tEdit::dndstart]} {
+    set tabid [lindex [$W tabs] [$W index @$x,$y]]
+    set tabtext [$W tab $tabid -text]
+    toplevel .dnd
+    tk::label .dnd.tabname -relief raised -padx 5 -pady 5 -text $tabtext
+    wm resizable .dnd 0 0
+    wm geometry .dnd "+$X+$Y"
+    wm overrideredirect .dnd 1
+    wm attributes .dnd -topmost true -type tooltip
+    pack .dnd.tabname -in .dnd -expand true -fill both
+    $W configure -cursor "hand2"
+  }
 }
 
 proc dropTab {W x y} {
   $W configure -cursor "left_ptr"
-  variable from
+  set from $tEdit::dndstart
   # check for a valid source
-  if {[string is int -strict $from]} {
+  if {[string is integer -strict $from]} {
     set to [$W index @$x,$y]
     # check for a valid destination
-    if {[string is int -strict $to]} {
+    if {[string is integer -strict $to]} {
       set tab [lindex [$W tabs] $from]
       $W insert $to $tab
     }
   }
+  destroy .dnd
   focus [.nb select].text
+}
+
+proc moveTab {W x y X Y} {
+  if [winfo exists .dnd] {
+    # check for valid path
+    set to [$W index @$x,$y]
+    if {[string is integer -strict $to]} {
+      wm geometry .dnd "+$X+$Y"
+    }
+  }
 }
 
 proc systemDetails {} {
@@ -1251,10 +1276,11 @@ proc createBindings {} {
   bind .nb <4> {nextTab}
   bind .nb <5> {prevTab}
   # drag and drop tab replacement
-  bind .nb <ButtonPress-1>           {dragTab %W %x %y}
+  bind .nb <ButtonPress-1>           {dragTab %W %x %y %X %Y}
   bind .nb <ButtonRelease-1>         {dropTab %W %x %y}
-  bind .nb <Control-ButtonPress-1>   {dragTab %W %x %y}
+  bind .nb <Control-ButtonPress-1>   {dragTab %W %x %y %X %Y}
   bind .nb <Control-ButtonRelease-1> {dropTab %W %x %y}
+  bind .nb <Motion>                  {moveTab %W %x %y %X %Y}
 
   # mark list bindings
   foreach keysym [list <Return> <Double-ButtonRelease-1>] {
