@@ -613,11 +613,11 @@ proc toggleLineNumbers {show} {
   append canvas [.nb select] ".canvas"
   append text [.nb select] ".text"
   if {$show eq "true"} {
-    bind Text <Configure> [list lineNumbers $text $canvas]
+    bind $text <Configure> [list lineNumbers $text $canvas]
     trace add execution $text leave [list lineNumbers $text $canvas]
     grid $canvas
   } else {
-    bind Text <Configure> {return}
+    bind $text <Configure> {return}
     trace remove execution $text leave [list lineNumbers $text $canvas]
     grid remove $canvas
   }
@@ -643,13 +643,9 @@ proc toggleView {w show} {
 proc setTabstop {tabs2spaces tabstop} {
   append text [.nb select] ".text"
   if {$tabs2spaces eq "true"} {
-    foreach keysym {<Tab> <ISO_Left_Tab>} {
-      bind Text $keysym [list $text insert insert [string repeat " " $tEdit::tabstop]]
-    }
+    bind Text <Tab> [list $text insert insert [string repeat " " $tEdit::tabstop]]
   } else {
-    foreach keysym {<Tab> <ISO_Left_Tab>} {
-      bind Text $keysym [list $text insert insert "\t"]
-    }
+    bind Text <Tab> [list $text insert insert "\t"]
   }
   $text configure -tabs "[expr {$tabstop * [font measure [$text cget -font] 0]}] left"
 }
@@ -677,7 +673,7 @@ proc colorScheme {colors} {
     amber {
       array set color [list \
         {cursor}     {#FFBF00}\
-        {highlight}  {#0000ff}\
+        {highlight}  {#0000FF}\
         {foreground} {#FFBF00}\
         {background} {#000000}\
         ]
@@ -1203,8 +1199,6 @@ proc createBindings {} {
     <Tab> \
     <Control-Tab> \
     <Control-Shift-Tab> \
-    <ISO_Left_Tab> \
-    <Control-ISO_Left_Tab> \
     <Control-a> \
     <Control-b> \
     <Control-e> \
@@ -1258,6 +1252,8 @@ proc createBindings {} {
   }
   # make Return and Keypad-Enter keys behave the same
   bind all <KP_Enter> {event generate %W <Return>}
+  # make all TAB keys behave the same
+  catch {bind all <ISO_Left_Tab> {event generate %W <Tab>}}
 
   # treeview widget bindings
   foreach keysym {<Return> <Double-ButtonRelease-1>} {
