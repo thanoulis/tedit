@@ -1,4 +1,4 @@
-#!/usr/bin/env wish
+#!/usr/bin/env tclsh
 
 package require Tk
 
@@ -76,7 +76,7 @@ proc recentAdd {filename} {
 }
 
 proc setModified {text} {
-  set tEdit::modified [expr {[$text edit modified] ? "\[Modified\]" : {}}]
+  set tEdit::modified [expr {[$text edit modified] ? "\[Modified\]" : ""}]
 }
 
 proc newTab {{position ""} {filename ""}} {
@@ -315,7 +315,7 @@ proc populateBrowser {node {tree ".tree"}} {
 
 proc startBrowser {{tree ".tree"}} {
   foreach dir [lsort -dictionary [file volumes]] {
-    populateBrowser [$tree insert {} end -text $dir -values [list $dir directory]] $tree
+    populateBrowser [$tree insert "" end -text $dir -values [list $dir directory]] $tree
   }
 }
 
@@ -482,12 +482,10 @@ proc replaceAll {what with} {
     showMessage "nothing to replace"
     return 1
   }
+  $text edit separator
   set count 0
-  while {[llength $taglist] > 0} {
-    lassign $taglist x y
-    $text edit separator
+  foreach {x y} $taglist {
     $text replace $x $y $with
-    set taglist [lreplace $taglist 0 1]
     incr count
   }
   showMessage "replace finished: $count substitutions"
@@ -825,7 +823,7 @@ proc dragDelay {W x y X Y} {
 }
 
 proc dragTab {W x y X Y} {
-  set tEdit::aftercmd {}
+  set tEdit::aftercmd ""
   set tEdit::dndstart [$W index @$x,$y]
   # check for a valid start
   if {[string is integer -strict $tEdit::dndstart]} {
@@ -861,7 +859,7 @@ proc dropTab {W x y} {
       $W insert $to $tab
     }
   }
-  set tEdit::dndstart {}
+  set tEdit::dndstart ""
   bind $W <Motion> {return 0}
   destroy .dnd
   focus [.nb select].text
@@ -987,7 +985,7 @@ proc createMenus {} {
       -command {toggleLineNumbers $tEdit::linenumbers}
     .menu.show add separator
     .menu.show add checkbutton -label "Menu Bar" -underline 0 \
-      -variable tEdit::showmenu -onvalue ".menu" -offvalue {} \
+      -variable tEdit::showmenu -onvalue ".menu" -offvalue "" \
       -command {. configure -menu $tEdit::showmenu}
     .menu.show add checkbutton -label "Status Bar" -underline 7 \
       -variable tEdit::showstatus -onvalue "true" -offvalue "false" \
