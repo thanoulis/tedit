@@ -56,6 +56,7 @@ namespace eval tEdit {
   variable showreplace {false}
 
   variable dndstart    {}
+  variable aftercmd    {}
 }
 
 ################################################################################
@@ -818,24 +819,37 @@ proc prevTab {{nb ".nb"}} {
   $nb select $tabid
 }
 
+proc dragDelay {W x y X Y} {
+  set tEdit::aftercmd [list dragTab $W $x $y $X $Y]
+  after 200 $tEdit::aftercmd
+}
+
 proc dragTab {W x y X Y} {
+  set tEdit::aftercmd {}
   set tEdit::dndstart [$W index @$x,$y]
   # check for a valid start
   if {[string is integer -strict $tEdit::dndstart]} {
+    # create window to show when drag
     set tabid [lindex [$W tabs] [$W index @$x,$y]]
     set tabtext [$W tab $tabid -text]
     toplevel .dnd
     tk::label .dnd.tabname -relief raised -padx 5 -pady 5 -text $tabtext
+    pack .dnd.tabname -in .dnd -expand true -fill both
     wm resizable .dnd 0 0
     wm geometry .dnd "+$X+$Y"
     wm overrideredirect .dnd 1
     wm attributes .dnd -topmost true -type tooltip
-    pack .dnd.tabname -in .dnd -expand true -fill both
+    bind $W <Motion> {moveTab %W %x %y %X %Y}
     $W configure -cursor "hand2"
   }
 }
 
 proc dropTab {W x y} {
+  if {$tEdit::aftercmd ne ""} {
+    after cancel $tEdit::aftercmd
+    focus [.nb select].text
+    return 0
+  }
   $W configure -cursor "left_ptr"
   set from $tEdit::dndstart
   # check for a valid source
@@ -847,6 +861,8 @@ proc dropTab {W x y} {
       $W insert $to $tab
     }
   }
+  set tEdit::dndstart {}
+  bind $W <Motion> {return 0}
   destroy .dnd
   focus [.nb select].text
 }
@@ -1276,11 +1292,10 @@ proc createBindings {} {
   bind .nb <4> {nextTab}
   bind .nb <5> {prevTab}
   # drag and drop tab replacement
-  bind .nb <ButtonPress-1>           {dragTab %W %x %y %X %Y}
+  bind .nb <ButtonPress-1>           {dragDelay %W %x %y %X %Y}
   bind .nb <ButtonRelease-1>         {dropTab %W %x %y}
-  bind .nb <Control-ButtonPress-1>   {dragTab %W %x %y %X %Y}
+  bind .nb <Control-ButtonPress-1>   {dragDelay %W %x %y %X %Y}
   bind .nb <Control-ButtonRelease-1> {dropTab %W %x %y}
-  bind .nb <Motion>                  {moveTab %W %x %y %X %Y}
 
   # mark list bindings
   foreach keysym [list <Return> <Double-ButtonRelease-1>] {
