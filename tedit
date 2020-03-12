@@ -76,7 +76,7 @@ proc recentAdd {filename} {
 }
 
 proc setModified {text} {
-  set tEdit::modified [expr {[$text edit modified] ? "\[Modified\]" : ""}]
+  set tEdit::modified [expr {[$text edit modified] ? {[Modified]} : ""}]
 }
 
 proc newTab {{position ""} {filename ""}} {
@@ -99,7 +99,7 @@ proc newTab {{position ""} {filename ""}} {
   incr tEdit::tabnum
 
   ttk::frame $tab(tab)
-    tk::canvas $tab(canvas) -width 50 -highlightthickness 0 -background "#ffff00"
+    tk::canvas $tab(canvas) -width 50 -highlightthickness 0 -background "#FFFF00"
     tk::text $tab(text) -relief sunken -highlightthickness 0 -takefocus 1 \
       -undo true -autoseparators true -blockcursor $tEdit::blockcursor \
       -insertunfocussed hollow -wrap $tEdit::wrap \
@@ -108,10 +108,9 @@ proc newTab {{position ""} {filename ""}} {
       -yscrollcommand [list $tab(yscroll) set] \
       -xscrollcommand [list $tab(xscroll) set]
       # text tags management and starting colors
-      $tab(text) tag configure tag_search     -foreground "#ffff00" -background "#000000"
-      $tab(text) tag configure tag_search_all -foreground "#000000" -background "#ffff00"
-      $tab(text) tag raise tag_search
-      $tab(text) tag lower tag_search_all tag_search
+      $tab(text) tag configure tag_search     -foreground "#FFFF00" -background "#000000"
+      $tab(text) tag configure tag_search_all -foreground "#000000" -background "#FFFF00"
+      $tab(text) tag raise tag_search tag_search_all
     ttk::scrollbar $tab(yscroll) -orient vertical   -command [list $tab(text) yview]
     ttk::scrollbar $tab(xscroll) -orient horizontal -command [list $tab(text) xview]
 
