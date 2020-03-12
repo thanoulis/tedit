@@ -64,7 +64,7 @@ namespace eval tEdit {
 #
 proc showMessage {msg} {
   set tEdit::message $msg
-  after 2000 {set tEdit::message ""}
+  after 2500 {set tEdit::message ""}
 }
 
 proc recentAdd {filename} {
@@ -243,7 +243,7 @@ proc saveFile {filename text} {
   storeFilename $filename
   recentAdd $filename
   showMessage "$filename saved"
-  set tEdit::filepath $filename
+  set tEdit::filepath [file nativename $filename]
   return 0
 }
 
@@ -751,7 +751,7 @@ proc base64Encode {} {
 }
 
 proc focusTab {tab} {
-  set tEdit::filepath $tEdit::filename($tab)
+  set tEdit::filepath [file nativename $tEdit::filename($tab)]
   append text $tab ".text"
   setModified $text
   # keep focusing the text widget while traversing tabs
