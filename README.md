@@ -12,10 +12,11 @@
 * Unlimited Undo/Redo
 * Search/Replace with [Regular Expressions](https://www.tcl.tk/man/tcl/TclCmd/re_syntax.htm) support
 * Tabs Menu (right mouse button)
-* Rearrange Tabs (middle mouse button drag/drop)
+* Rearrange Tabs (drag'n'drop)
 * Tk Themes
 * Colors and Fonts
-* Customizable Tabstops
+* Customizable Tabs
+* Spaces instead of Tabs
 * Line Spacing (above/below lines and wraps)
 * Base64 Encoder
 * Command Line Support
