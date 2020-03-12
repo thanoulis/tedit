@@ -165,7 +165,7 @@ proc openFile {filename} {
     if {$filename eq $tEdit::filename($tab)} {
       .nb select $tab
       showMessage "[file tail $filename] already open"
-      return 0
+      return 1
     }
   }
   if {[file type $filename] ne "file"} {
@@ -319,7 +319,7 @@ proc startBrowser {{tree ".tree"}} {
 }
 
 proc openFileBrowser {node {tree ".tree"}} {
-  if {$node eq ""} {return 0}
+  if {$node eq ""} {return 2}
   if {[$tree set $node type] eq "directory"} {
     populateBrowser $node $tree
   } else {
@@ -614,7 +614,7 @@ proc toggleLineNumbers {show} {
     trace add execution $text leave [list lineNumbers $text $canvas]
     grid $canvas
   } else {
-    bind $text <Configure> {return}
+    bind $text <Configure> {return 0}
     trace remove execution $text leave [list lineNumbers $text $canvas]
     grid remove $canvas
   }
