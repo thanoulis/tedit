@@ -84,12 +84,12 @@ proc newTab {{position ""} {filename ""}} {
   set nb .nb
   set tabnum $tEdit::tabnum
   # set array for tabbed widgets
-  array set tab [list\
-    {tab}      "$nb.$tabnum"\
-    {canvas}   "$nb.$tabnum.canvas"\
-    {text}     "$nb.$tabnum.text"\
-    {yscroll}  "$nb.$tabnum.yscroll"\
-    {xscroll}  "$nb.$tabnum.xscroll"\
+  array set tab [list \
+    {tab}      "${nb}${tabnum}"\
+    {canvas}   "${nb}${tabnum}.canvas"\
+    {text}     "${nb}${tabnum}.text"\
+    {yscroll}  "${nb}${tabnum}.yscroll"\
+    {xscroll}  "${nb}${tabnum}.xscroll"\
   ]
   # set arrays specific to this tab
   array set tEdit::filename [list $tab(tab) $filename]
