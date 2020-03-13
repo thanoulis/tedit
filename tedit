@@ -63,6 +63,7 @@ namespace eval tEdit {
 # PROCEDURES
 #
 proc showMessage {msg} {
+  after cancel {set tEdit::message ""}
   set tEdit::message $msg
   after 2500 {set tEdit::message ""}
 }
@@ -430,6 +431,7 @@ proc searchOne {what {direction "-forwards"}} {
 }
 
 proc searchAll {what} {
+  if {$what eq ""} {return 1}
   append text [.nb select] ".text"
   clearHighlight [list tag_search tag_search_all]
   set search_cmd [list $text search $tEdit::regexp -all -count n -- $what 0.0 end]
@@ -1231,43 +1233,40 @@ proc createBindings {} {
   }
   # text widget bindings
   bind Text <<Modified>> {setModified %W}
-  bind Text <3>          {focus %W; tk_popup .menu.edit %X %Y}
-  bind Text <Control-3>  {focus %W; tk_popup .menu %X %Y}
+  bind Text <ButtonPress-3> {focus %W; tk_popup .menu.edit %X %Y}
+  bind Text <Control-ButtonPress-3> {focus %W; tk_popup .menu %X %Y}
   bind Text <Control-ButtonRelease-1> {.menu.marks invoke "Mark Toggle"}
 
   # main window bindings
-  bind . <Control-t>  {.menu.file invoke "New Tab"}
-  bind . <Control-F4> {.menu.file invoke "Close Tab"}
-  bind . <Control-o>  {.menu.file invoke "Open..."}
-  bind . <Control-s>  {.menu.file invoke "Save"}
-  bind . <Control-S>  {.menu.file invoke "Save As..."}
-  bind . <Control-e>  {.menu.file invoke "Base64 Encode..."}
-  bind . <Control-q>  {.menu.file invoke "Close All"}
-  bind . <Control-Q>  {.menu.file invoke "Exit"}
-  bind . <Control-z>  {.menu.edit invoke "Undo"}
-  bind . <Control-Z>  {.menu.edit invoke "Redo"}
-  bind . <Control-a>  {.menu.edit invoke "Select All"}
-  bind . <Control-j>  {.menu.edit invoke "Fold Lines"}
-  bind . <Control-J>  {.menu.edit invoke "Unfold All"}
-  bind . <Control-f>  {.menu.search invoke "Show Search"}
-  bind . <F3>         {.menu.search invoke "Find Next"}
-  bind . <Shift-F3>   {.menu.search invoke "Find Prev"}
-  bind . <Control-l>  {.menu.search invoke "Clear Highlight"}
-  bind . <Shift-F5>   {.menu.marks invoke "Show Marks"}
-  bind . <Control-m>  {.menu.marks invoke "Mark Toggle"}
-  bind . <F5>         {.menu.marks invoke "Next Mark"}
-  bind . <Control-M>  {.menu.marks invoke "Clear Marks"}
-  bind . <F2>         {.menu.show invoke "File Browser"}
-  bind . <Control-w>  {.menu.options invoke "Word Wrap"}
-  bind . <Control-b>  {.menu.options invoke "Block Cursor"}
-  bind . <F1>         {.menu.help invoke "About tEdit..."}
+  bind all <Control-t>  {.menu.file invoke "New Tab"}
+  bind all <Control-F4> {.menu.file invoke "Close Tab"}
+  bind all <Control-o>  {.menu.file invoke "Open..."}
+  bind all <Control-s>  {.menu.file invoke "Save"}
+  bind all <Control-S>  {.menu.file invoke "Save As..."}
+  bind all <Control-e>  {.menu.file invoke "Base64 Encode..."}
+  bind all <Control-q>  {.menu.file invoke "Close All"}
+  bind all <Control-Q>  {.menu.file invoke "Exit"}
+  bind all <Control-z>  {.menu.edit invoke "Undo"}
+  bind all <Control-Z>  {.menu.edit invoke "Redo"}
+  bind all <Control-a>  {.menu.edit invoke "Select All"}
+  bind all <Control-j>  {.menu.edit invoke "Fold Lines"}
+  bind all <Control-J>  {.menu.edit invoke "Unfold All"}
+  bind all <Control-f>  {.menu.search invoke "Show Search"}
+  bind all <F3>         {.menu.search invoke "Find Next"}
+  bind all <Shift-F3>   {.menu.search invoke "Find Prev"}
+  bind all <Control-l>  {.menu.search invoke "Clear Highlight"}
+  bind all <Shift-F5>   {.menu.marks invoke "Show Marks"}
+  bind all <Control-m>  {.menu.marks invoke "Mark Toggle"}
+  bind all <F5>         {.menu.marks invoke "Next Mark"}
+  bind all <Control-M>  {.menu.marks invoke "Clear Marks"}
+  bind all <F2>         {.menu.show invoke "File Browser"}
+  bind all <Control-w>  {.menu.options invoke "Word Wrap"}
+  bind all <Control-b>  {.menu.options invoke "Block Cursor"}
+  bind all <F1>         {.menu.help invoke "About tEdit..."}
   # toggle menu "Set Font..." state
-  bind . <<TkFontchooserVisibility>> {
-    if {[tk fontchooser configure -visible]} {
-      .menu.options entryconfigure "Set Font..." -state disabled
-    } else {
-      .menu.options entryconfigure "Set Font..." -state normal
-    }
+  bind all <<TkFontchooserVisibility>> {
+    set state [expr {[tk fontchooser configure -visible] ? "disabled" : "normal"}]
+    .menu.options entryconfigure "Set Font..." -state $state
   }
   # make Return and Keypad-Enter keys behave the same
   bind all <KP_Enter> {event generate %W <Return>}
@@ -1284,7 +1283,7 @@ proc createBindings {} {
   # on tab change reload user settings (except font and line numbering)
   bind .nb <<NotebookTabChanged>> {focusTab [.nb select]}
   # popup menu on tab labels
-  bind .nb <3> {tabsMenu %W %x %y %X %Y}
+  bind .nb <ButtonPress-3> {tabsMenu %W %x %y %X %Y}
   # mouse wheel rotate tabs
   bind .nb <4> {nextTab}
   bind .nb <5> {prevTab}
@@ -1302,7 +1301,7 @@ proc createBindings {} {
 
   # search & replace combobox bindings
   foreach combobox {.cbsearch .cbreplace} {
-    bind $combobox <3>      {focus %W; tk_popup .menusearch %X %Y}
+    bind $combobox <ButtonPress-3> {focus %W; tk_popup .menusearch %X %Y}
     bind $combobox <Escape> {.menu.search invoke "Show Search"}
   }
   bind .cbreplace <Return> {.breplace invoke}
