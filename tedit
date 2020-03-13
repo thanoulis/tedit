@@ -65,7 +65,7 @@ namespace eval tEdit {
 proc showMessage {msg} {
   after cancel {set tEdit::message ""}
   set tEdit::message $msg
-  after 2500 {set tEdit::message ""}
+  after 5000 {set tEdit::message ""}
 }
 
 proc recentAdd {filename} {
@@ -391,12 +391,7 @@ proc unfoldText {which text} {
 }
 
 proc searchOne {what {direction "-forwards"}} {
-  clearHighlight [list tag_search tag_search_all]
-  searchAll $what
-  if {$what eq ""} {
-    showMessage "nothing to search for"
-    return 1
-  }
+  if {[searchAll $what] == 1} {return 1}
   if {$what ni $tEdit::hsearch} {
     lappend tEdit::hsearch $what
   }
@@ -412,26 +407,22 @@ proc searchOne {what {direction "-forwards"}} {
     set search_cmd [linsert $search_cmd 2 -nocase]
   }
   if [catch {set tagindex [{*}$search_cmd]} msg] {
-    .cbsearch configure -style red.TCombobox
+    .cbsearch configure -style error.TCombobox
     showMessage [lindex [split $msg :] 1]
     return 1
   } else {
-    .cbsearch configure -style white.TCombobox
+    .cbsearch configure -style valid.TCombobox
+    $text tag add tag_search $tagindex $tagindex+${n}char
+    $text mark set insert $tagindex
+    $text see $tagindex
   }
-  if {$tagindex eq ""} {
-    .cbsearch configure -style red.TCombobox
-    showMessage "no matches found"
-    return 1
-  } else {
-    .cbsearch configure -style white.TCombobox
-  }
-  $text tag add tag_search $tagindex $tagindex+${n}char
-  $text mark set insert $tagindex
-  $text see $tagindex
 }
 
 proc searchAll {what} {
-  if {$what eq ""} {return 1}
+  if {$what eq ""} {
+    showMessage "nothing to search for"
+    return 1
+  }
   append text [.nb select] ".text"
   clearHighlight [list tag_search tag_search_all]
   set search_cmd [list $text search $tEdit::regexp -all -count n -- $what 0.0 end]
@@ -439,20 +430,21 @@ proc searchAll {what} {
     set search_cmd [linsert $search_cmd 2 -nocase]
   }
   if [catch {set taglist [{*}$search_cmd]} msg] {
-    .cbsearch configure -style red.TCombobox
+    .cbsearch configure -style error.TCombobox
     showMessage [lindex [split $msg :] 1]
     return 1
-  } else {
-    .cbsearch configure -style white.TCombobox
-  }
-  if {$taglist eq ""} {
+  } elseif {$taglist eq ""} {
+    .cbsearch configure -style error.TCombobox
     showMessage "no matches found"
     return 1
-  }
-  set count 0
-  foreach tagindex $taglist {
-    $text tag add tag_search_all $tagindex $tagindex+[lindex $n $count]char
-    incr count
+  } else {
+    set count 0
+    foreach tagindex $taglist {
+      $text tag add tag_search_all $tagindex $tagindex+[lindex $n $count]char
+      incr count
+    }
+    set matches [expr {$count == 1 ? "match" : "matches"}]
+    showMessage "$count $matches found"
   }
 }
 
@@ -465,24 +457,24 @@ proc replaceOne {what with} {
   if {$taglist eq ""} {
     searchOne $what
   }
-  if {$taglist ne ""} {
+  set taglist [$text tag ranges tag_search]
+  if {$taglist eq ""} {
+    showMessage "nothing to replace"
+    return 1
+  } else {
     $text edit separator
     $text replace {*}$taglist $with
     searchOne $what
-  } else {
-    showMessage "nothing to replace"
-    return 1
   }
 }
 
 proc replaceAll {what with} {
-  append text [.nb select] ".text"
-  searchAll $what
-  set taglist [$text tag ranges tag_search_all]
-  if {$taglist eq ""} {
+  if {[searchAll $what] == 1} {
     showMessage "nothing to replace"
     return 1
   }
+  append text [.nb select] ".text"
+  set taglist [$text tag ranges tag_search_all]
   $text edit separator
   set count 0
   foreach {x y} $taglist {
@@ -1097,6 +1089,10 @@ proc createMenus {} {
 # WIDGETS
 #
 proc createWidgets {} {
+  # set different styles for search/replace comboboxes
+  ttk::style configure valid.TCombobox -fieldbackground white
+  ttk::style configure error.TCombobox -fieldbackground red
+  
   ttk::panedwindow .main -orient horizontal
     ttk::frame .browser
       ttk::treeview .tree -selectmode browse \
@@ -1112,24 +1108,30 @@ proc createWidgets {} {
       grid rowconfigure    .browser .tree -weight 1
       grid columnconfigure .browser .tree -weight 1
 
-  ttk::frame .editor
-    ttk::notebook .nb -takefocus 0
-    ttk::notebook::enableTraversal .nb
-
-  ttk::labelframe .fmarks -borderwidth 1 -relief flat -text "Marks:"
-    tk::listbox .marks -takefocus 0 -highlightthickness 0 -width 10 \
-      -yscrollcommand {.ymarks set} -xscrollcommand {.xmarks set}
-    ttk::scrollbar .ymarks -orient vertical   -command {.marks yview}
-    ttk::scrollbar .xmarks -orient horizontal -command {.marks xview}
-    # grid listbox and scrollbars in the labelframe
-    grid .marks  -in .fmarks -row 0 -column 0 -sticky ns
-    grid .ymarks -in .fmarks -row 0 -column 1 -sticky ns
-    grid .xmarks -in .fmarks -row 1 -column 0 -sticky we
-    grid rowconfigure .fmarks .marks -weight 1
+    ttk::frame .editor
+      ttk::notebook .nb -takefocus 0
+      ttk::notebook::enableTraversal .nb
+      ttk::labelframe .fmarks -borderwidth 1 -relief flat -text "Marks:"
+        tk::listbox .marks -takefocus 0 -highlightthickness 0 -width 10 \
+          -yscrollcommand {.ymarks set} -xscrollcommand {.xmarks set}
+        ttk::scrollbar .ymarks -orient vertical   -command {.marks yview}
+        ttk::scrollbar .xmarks -orient horizontal -command {.marks xview}
+        # grid listbox and scrollbars in the labelframe
+        grid .marks  -in .fmarks -row 0 -column 0 -sticky ns
+        grid .ymarks -in .fmarks -row 0 -column 1 -sticky ns
+        grid .xmarks -in .fmarks -row 1 -column 0 -sticky we
+        grid rowconfigure .fmarks .marks -weight 1
+      # grid notebook and marks in the right pane frame
+      grid .nb     -in .editor -row 0 -column 0 -sticky nswe
+      grid .fmarks -in .editor -row 0 -column 1 -sticky ns
+      grid rowconfigure    .editor .nb -weight 1
+      grid columnconfigure .editor .nb -weight 1
+      # remove marks from view
+      grid remove .fmarks
 
   ttk::frame .fsearch -borderwidth 1 -relief sunken
     ttk::labelframe .lfsearch -borderwidth 1 -relief flat -text "Search for:"
-      ttk::combobox .cbsearch -style white.TCombobox \
+      ttk::combobox .cbsearch -style valid.TCombobox \
         -textvariable tEdit::search -values $tEdit::hsearch \
         -postcommand {.cbsearch configure -values $tEdit::hsearch}
       ttk::button .bfindnext -text "Find Next" -width 9 \
@@ -1158,7 +1160,7 @@ proc createWidgets {} {
       grid columnconfigure .lfsearch .ckreplace -weight 1
 
     ttk::labelframe .lfreplace -borderwidth 1 -relief flat -text "Replace with:"
-      ttk::combobox .cbreplace -style white.TCombobox \
+      ttk::combobox .cbreplace -style valid.TCombobox \
         -textvariable tEdit::replace -values $tEdit::hreplace \
         -postcommand {.cbreplace configure -values $tEdit::hreplace}
       ttk::button .breplace -text "Replace" -width 9 \
@@ -1168,23 +1170,15 @@ proc createWidgets {} {
         -underline 0 -takefocus 0 \
         -command {replaceAll $tEdit::search $tEdit::replace}
         # grid them in the replace labelframe
-        grid .cbreplace   -in .lfreplace -row 0 -column 0
-        grid .breplace    -in .lfreplace -row 0 -column 1
-        grid .breplaceall -in .lfreplace -row 0 -column 2
+        grid .cbreplace   -in .lfreplace -row 0 -column 0 -sticky we
+        grid .breplace    -in .lfreplace -row 0 -column 1 -sticky w
+        grid .breplaceall -in .lfreplace -row 0 -column 2 -sticky w
       # grid find and replace labelframes in the search frame
       grid .lfsearch  -in .fsearch -row 0 -column 0 -sticky we
       grid .lfreplace -in .fsearch -row 1 -column 0 -sticky we
       grid columnconfigure .fsearch .lfsearch -weight 1
       # remove replace frame from view
       grid remove .lfreplace
-
-    # grid notebook and marks in the right pane frame
-    grid .nb     -in .editor -row 0 -column 0 -sticky nswe
-    grid .fmarks -in .editor -row 0 -column 1 -sticky ns
-    grid rowconfigure    .editor .nb -weight 1
-    grid columnconfigure .editor .nb -weight 1
-    # remove marks from view
-    grid remove .fmarks
 
   ttk::frame .statusbar -borderwidth 1 -relief sunken
     ttk::label .filepath -relief flat -anchor w -textvariable tEdit::filepath
@@ -1205,10 +1199,7 @@ proc createWidgets {} {
   # remove search frame from view
   grid remove .fsearch
 
-  # add the frames to main (paned) window but hide browser
-  .main add .browser
   .main add .editor
-  .main forget .browser
 }
 
 ################################################################################
@@ -1308,12 +1299,6 @@ proc createBindings {} {
   bind .cbsearch  <Return> {.bfindnext invoke}
   bind .cbsearch <<ComboboxSelected>> {.bfindnext invoke}
 }
-
-################################################################################
-# TTK STYLES
-#
-ttk::style configure white.TCombobox -fieldbackground white
-ttk::style configure red.TCombobox   -fieldbackground red
 
 ################################################################################
 # MAIN PROGRAM
