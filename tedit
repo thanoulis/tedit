@@ -498,17 +498,19 @@ proc clearHighlight {tags} {
 proc markToggle {} {
   append text [.nb select] ".text"
   set linenum [lindex [split [$text index insert] .] 0]
-  set mark [lsearch -inline -all -glob [$text tag names "${linenum}.0"] "Mark#*"]
+  append first $linenum ".0"
+  append last $linenum ".end"
+  set mark [lsearch -inline -all -glob [$text tag names $first] "Mark#*"]
   if {$mark eq ""} {
-    if {[$text index "${linenum}.0"] eq [$text index "${linenum}.end"]} {
+    if {[$text get $first $last] eq ""} {
       showMessage "cannot mark: empty line"
       return 1
     }
     append mark "Mark#" [incr tEdit::marknum($text)]
-    $text mark set $mark "${linenum}.0"
+    $text mark set $mark $first
     $text tag configure $mark -underline true
     $text tag raise $mark sel
-    $text tag add $mark "${linenum}.0" "${linenum}.end"
+    $text tag add $mark $first $last
     lappend tEdit::marks($text) $mark
     foreach item {"Next Mark" "Clear Marks"} {
     .menu.marks entryconfigure $item -state normal
@@ -520,10 +522,7 @@ proc markToggle {} {
 
 proc markSee {mark} {
   append text [.nb select] ".text"
-  if {$mark eq ""} {
-    showMessage "select a mark"
-    return 1
-  }
+  if {$mark eq ""} {return 1}
   $text mark set insert $mark
   $text see $mark
   focus $text
@@ -537,7 +536,7 @@ proc markNext {markbox} {
   }
   set mark [$text mark next "insert+1char"]
   while {$mark ni $tEdit::marks($text)} {
-    if {$mark eq ""} {set mark 1.0}
+    if {$mark eq ""} {set mark 0.0}
     set mark [$text mark next $mark]
   }
   set index [lsearch $tEdit::marks($text) $mark]
@@ -580,10 +579,7 @@ proc markDelete {which} {
 }
 
 proc lineNumbers {text canvas args} {
-  set checklist {
-    bbox cget compare count debug dlineinfo
-    dump get index mark peer search
-  }
+  set checklist "bbox cget compare count debug dlineinfo dump get index mark peer search"
   if {[llength $args] == 0 || [lindex $args 0 1] ni $checklist} {
     $canvas configure -background [$text tag cget tag_search_all -background]
     $canvas delete all
@@ -615,16 +611,16 @@ proc toggleLineNumbers {show} {
   }
 }
 
-proc toggleView {w show} {
+proc toggleView {widget show} {
   if {$show eq "false"} {
-    grid remove $w
-    switch -- $w {
+    grid remove $widget
+    switch -- $widget {
       .lfreplace {focus .cbsearch}
       default    {focus [.nb select].text}
     }
   } else {
-    grid $w
-    switch -- $w {
+    grid $widget
+    switch -- $widget {
       .fsearch   {focus .cbsearch}
       .lfreplace {focus .cbreplace}
       default    {focus [.nb select].text}
