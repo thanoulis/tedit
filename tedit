@@ -397,32 +397,26 @@ proc unfoldText {which text} {
   }
 }
 
-proc searchOne {what {direction "-forwards"}} {
+proc searchOne {what {direction "nextrange"}} {
   if {[searchAll $what] == 1} {return 1}
   if {$what ni $tEdit::hsearch} {
     lappend tEdit::hsearch $what
   }
   append text [.nb select] ".text"
-  set search_cmd [list $text search $tEdit::regexp $direction -count n -- $what]
-  # move cursor forwards/backwards to continue with "Find Next/Prev"
-  if {$direction eq "-backwards"} {
-    set search_cmd [linsert $search_cmd end {insert-1char}]
+  if {$direction eq "prevrange"} {
+    set insert "insert-1char"
+    set loop "end-1 end"
   } else {
-    set search_cmd [linsert $search_cmd end {insert+1char}]
+    set insert "insert+1char"
+    set loop "0 1"
   }
-  if {$tEdit::matchcase eq "false"} {
-    set search_cmd [linsert $search_cmd 2 -nocase]
+  set tagindex [$text tag $direction tag_search_all $insert]
+  if {$tagindex eq ""}  {
+    set tagindex [lrange [$text tag ranges tag_search_all] {*}$loop]
   }
-  if {[catch {set tagindex [{*}$search_cmd]} msg]} {
-    .cbsearch configure -style error.TCombobox
-    showMessage [lindex [split $msg :] 1]
-    return 1
-  } else {
-    .cbsearch configure -style valid.TCombobox
-    $text tag add tag_search $tagindex $tagindex+${n}char
-    $text mark set insert $tagindex
-    $text see $tagindex
-  }
+  $text tag add tag_search {*}$tagindex
+  $text mark set insert tag_search.first
+  $text see tag_search.first
 }
 
 proc searchAll {what} {
@@ -431,7 +425,7 @@ proc searchAll {what} {
     return 1
   }
   append text [.nb select] ".text"
-  clearHighlight [list tag_search tag_search_all]
+  clearHighlight "tag_search tag_search_all"
   set search_cmd [list $text search $tEdit::regexp -all -count n -- $what 0.0 end]
   if {$tEdit::matchcase eq "false"} {
     set search_cmd [linsert $search_cmd 2 -nocase]
@@ -446,8 +440,9 @@ proc searchAll {what} {
     return 1
   } else {
     set count 0
-    foreach tagindex $taglist {
-      $text tag add tag_search_all $tagindex $tagindex+[lindex $n $count]char
+    foreach first $taglist {
+      set last "$first+[lindex $n $count]indices"
+      $text tag add tag_search_all $first $last
       incr count
     }
     set matches [expr {$count == 1 ? "match" : "matches"}]
@@ -494,8 +489,8 @@ proc replaceAll {what with} {
 proc clearHighlight {tags} {
   append text [.nb select] ".text"
   foreach tag $tags {
-    foreach {from to} [$text tag ranges $tag] {
-      $text tag remove $tag $from $to
+    foreach {first last} [$text tag ranges $tag] {
+      $text tag remove $tag $first $last
     }
   }
 }
@@ -946,12 +941,12 @@ proc createMenus {} {
       -variable tEdit::showsearch -onvalue "true" -offvalue "false" \
       -command {toggleView .fsearch $tEdit::showsearch}
     .menu.search add command -label "Find Next" -underline 5 \
-      -accelerator "F3" -command {.bfindnext invoke}
+      -accelerator "F3" -command {searchOne $tEdit::search nextrange}
     .menu.search add command -label "Find Prev" -underline 5 \
-      -accelerator "Shift+F3" -command {.bfindprev invoke}
+      -accelerator "Shift+F3" -command {searchOne $tEdit::search prevrange}
     .menu.search add command -label "Clear Highlight" -underline 0 \
       -accelerator "Ctrl+L" \
-      -command {clearHighlight [list tag_search tag_search_all]}
+      -command {clearHighlight "tag_search tag_search_all"}
   .menu add cascade -label "Marks" -underline 0 -menu [menu .menu.marks]
     .menu.marks add checkbutton -label "Show Marks" -underline 0 \
       -accelerator "Shift+F5" \
@@ -1132,10 +1127,10 @@ proc createWidgets {} {
         -postcommand {.cbsearch configure -values $tEdit::hsearch}
       ttk::button .bfindnext -text "Find Next" -width 9 \
         -underline 5 -takefocus 0 \
-        -command {searchOne $tEdit::search -forwards}
+        -command {.menu.search invoke "Find Next"}
       ttk::button .bfindprev -text "Find Prev" -width 9 \
         -underline 5 -takefocus 0 \
-        -command {searchOne $tEdit::search -backwards}
+        -command {.menu.search invoke "Find Prev"}
       ttk::checkbutton .ckmatchcase -text "Match Case" \
         -underline 0 -takefocus 0 \
         -variable tEdit::matchcase -onvalue "true" -offvalue "false"
