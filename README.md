@@ -5,6 +5,7 @@
 * Tabs
 * Mark Lines
 * Word Wrap
+* Autoindent
 * Line Numbers
 * Custom Folding
 * Recent File List
