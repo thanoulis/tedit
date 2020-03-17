@@ -760,9 +760,9 @@ proc focusTab {tab} {
   toggleView "${tab}.yscroll" $tEdit::showyscroll
   toggleView "${tab}.xscroll" $tEdit::showxscroll
   setTabstop $tEdit::tabs2spaces $tEdit::tabstop
-  setSpacing -spacing1 $tEdit::spacing1
-  setSpacing -spacing2 $tEdit::spacing2
-  setSpacing -spacing3 $tEdit::spacing3
+  foreach spacing {spacing1 spacing2 spacing3} {
+    setSpacing "-${spacing}" [set "tEdit::${spacing}"]
+  }
   colorScheme $tEdit::colors
   set tEdit::linenumbers \
     [expr {[trace info execution $text] eq "" ? "false" : "true"}]
@@ -817,7 +817,7 @@ proc dragTab {W x y X Y} {
     wm resizable .dnd 0 0
     wm geometry .dnd "+${X}+${Y}"
     wm overrideredirect .dnd 1
-    wm attributes .dnd -topmost true -type tooltip
+    wm attributes .dnd -topmost true
     bind $W <Motion> {moveTab %W %x %y %X %Y}
     $W configure -cursor "hand2"
   }
