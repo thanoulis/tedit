@@ -146,7 +146,7 @@ proc newTab {{position ""} {filename ""}} {
 
 proc closeTab {tab {nb ".nb"}} {
   if {[llength $tab] > 1} {set tab [$nb select]}
-  append text $tab ".text"
+  set text "${tab}.text"
   if {[askSave $tab $text] != 0} {return 2}
   $nb forget $tab
   destroy $tab
@@ -425,7 +425,7 @@ proc searchOne {what {direction "nextrange"}} {
   if {$what ni $tEdit::hsearch} {
     lappend tEdit::hsearch $what
   }
-  append text [.nb select] ".text"
+  set text "[.nb select].text"
   if {$direction eq "prevrange"} {
     set insert "insert-1char"
     set loop "end-1 end"
@@ -447,7 +447,7 @@ proc searchAll {what} {
     showMessage "nothing to search for"
     return 1
   }
-  append text [.nb select] ".text"
+  set text "[.nb select].text"
   clearHighlight "tag_search tag_search_all"
   set search_cmd [list $text search $tEdit::regexp -all -count n -- $what 0.0 end]
   if {$tEdit::matchcase eq "false"} {
@@ -474,7 +474,7 @@ proc searchAll {what} {
 }
 
 proc replaceOne {what with} {
-  append text [.nb select] ".text"
+  set text "[.nb select].text"
   if {$with ni $tEdit:::hreplace} {
     lappend tEdit::hreplace $with
   }
@@ -498,7 +498,7 @@ proc replaceAll {what with} {
     showMessage "nothing to replace"
     return 1
   }
-  append text [.nb select] ".text"
+  set text "[.nb select].text"
   set taglist [$text tag ranges tag_search_all]
   $text edit separator
   set count 0
@@ -510,7 +510,7 @@ proc replaceAll {what with} {
 }
 
 proc clearHighlight {tags} {
-  append text [.nb select] ".text"
+  set text "[.nb select].text"
   foreach tag $tags {
     foreach {first last} [$text tag ranges $tag] {
       $text tag remove $tag $first $last
@@ -519,7 +519,7 @@ proc clearHighlight {tags} {
 }
 
 proc markToggle {} {
-  append text [.nb select] ".text"
+  set text "[.nb select].text"
   set first [$text index "insert linestart"]
   set last [$text index "insert lineend"]
   set mark [lsearch -inline -all -glob [$text tag names $first] "Mark#*"]
@@ -528,7 +528,7 @@ proc markToggle {} {
       showMessage "cannot mark: empty line"
       return 1
     }
-    append mark "Mark#" [incr tEdit::marknum($text)]
+    set mark "Mark#[incr tEdit::marknum($text)]"
     $text mark set $mark $first
     $text tag configure $mark -underline true
     $text tag raise $mark sel
@@ -543,7 +543,7 @@ proc markToggle {} {
 }
 
 proc markSee {mark} {
-  append text [.nb select] ".text"
+  set text "[.nb select].text"
   if {$mark eq ""} {return 1}
   $text mark set insert $mark
   $text see $mark
@@ -551,7 +551,7 @@ proc markSee {mark} {
 }
 
 proc markNext {markbox} {
-  append text [.nb select] ".text"
+  set text "[.nb select].text"
   if {[llength $tEdit::marks($text)] == 0} {
     showMessage "no marks found"
     return 1
@@ -570,7 +570,7 @@ proc markNext {markbox} {
 }
 
 proc markDelete {which} {
-  append text [.nb select] ".text"
+  set text "[.nb select].text"
   set markbox .marks
   switch -- $which {
     all {
@@ -621,8 +621,8 @@ proc lineNumbers {text canvas args} {
 }
 
 proc toggleLineNumbers {show} {
-  append text [.nb select] ".text"
-  append canvas [.nb select] ".canvas"
+  set text "[.nb select].text"
+  set canvas "[.nb select].canvas"
   if {$show eq "true"} {
     bind $text <Configure> [list lineNumbers $text $canvas]
     if {[trace info execution $text] eq ""} {
@@ -654,7 +654,7 @@ proc toggleView {widget show} {
 }
 
 proc setTabstop {tabs2spaces tabstop} {
-  append text [.nb select] ".text"
+  set text "[.nb select].text"
   if {$tabs2spaces eq "true"} {
     bind Text <Tab> [list $text insert insert [string repeat " " $tabstop]]
   } else {
@@ -668,7 +668,7 @@ proc selectFont {text font} {
 }
 
 proc setFont {tabstop} {
-  append text [.nb select] ".text"
+  set text "[.nb select].text"
   tk fontchooser configure -title "Select Font" -parent . \
     -font [$text cget -font] -command [list selectFont $text]
   tk fontchooser show
@@ -676,13 +676,13 @@ proc setFont {tabstop} {
 }
 
 proc setSpacing {type spacing} {
-  append text [.nb select] ".text"
+  set text "[.nb select].text"
   $text configure $type $spacing
 }
 
 proc colorScheme {colorscheme} {
-  append text [.nb select] ".text"
-  append canvas [.nb select] ".canvas"
+  set text "[.nb select].text"
+  set canvas "[.nb select].canvas"
   switch -- $colorscheme {
     amber {
       array set color {
@@ -770,29 +770,29 @@ proc base64Encode {} {
 
 proc focusTab {tab} {
   set tEdit::filepath [file nativename $tEdit::filename($tab)]
-  append text $tab ".text"
-  setModified $text
+  set text "${tab}.text"
   undoStack $text
-  autoIndent $tEdit::autoindent
-  # toggle "Unfold all" menu state
+  setModified $text
+  # set "Unfold all" menu state
   .menu.edit entryconfigure "Unfold All" \
     -state [expr {$tEdit::folds($text) eq "" ? "disabled" : "normal"}]
-  # toggle "Next Mark" "Clear Marks" menu state
+  # set "Next Mark" & "Clear Marks" menu state
   .marks configure -listvariable tEdit::marks($text)
   foreach item {"Next Mark" "Clear Marks"} {
     .menu.marks entryconfigure $item \
       -state [expr {$tEdit::marks($text) eq "" ? "disabled" : "normal"}]
   }
-  $text configure -wrap $tEdit::wrap
-  $text configure -blockcursor $tEdit::blockcursor
+  toggleLineNumbers $tEdit::linenumbers
   toggleView "${tab}.yscroll" $tEdit::showyscroll
   toggleView "${tab}.xscroll" $tEdit::showxscroll
-  setTabstop $tEdit::tabs2spaces $tEdit::tabstop
+  autoIndent $tEdit::autoindent
+  $text configure -wrap $tEdit::wrap
+  $text configure -blockcursor $tEdit::blockcursor
   foreach spacing {spacing1 spacing2 spacing3} {
     setSpacing "-${spacing}" [set "tEdit::${spacing}"]
   }
   colorScheme $tEdit::colors
-  toggleLineNumbers $tEdit::linenumbers
+  setTabstop $tEdit::tabs2spaces $tEdit::tabstop
   # keep focusing the text widget while traversing tabs
   focus $text
 }
