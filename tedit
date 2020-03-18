@@ -34,7 +34,7 @@ namespace eval tEdit {
   variable blockcursor {false}
   variable showmarks   {false}
   variable showstatus  {true}
-  variable linenumbers {false}
+  variable linenumbers {true}
   variable showyscroll {true}
   variable showxscroll {true}
   variable autoindent  {true}
@@ -101,7 +101,7 @@ proc newTab {{position ""} {filename ""}} {
   incr tEdit::tabnum
 
   ttk::frame $tab(tab)
-    tk::canvas $tab(canvas) -width 50 -highlightthickness 0 -background "#FFFF00"
+    tk::canvas $tab(canvas) -width 10 -highlightthickness 0 -background "#FFFF00"
     tk::text $tab(text) -relief sunken -highlightthickness 0 -takefocus 1 \
       -undo true -autoseparators true -maxundo 0 -blockcursor $tEdit::blockcursor \
       -insertunfocussed hollow -wrap $tEdit::wrap \
@@ -601,17 +601,18 @@ proc markDelete {which} {
 }
 
 proc lineNumbers {text canvas args} {
-  set checklist "bbox cget compare count debug dlineinfo dump get index mark peer search"
-  if {[llength $args] == 0 || [lindex $args 0 1] ni $checklist} {
-    $canvas configure -background [$text tag cget tag_search_all -background]
+  set checklist "configure delete insert see yview"
+  if {[llength $args] == 0 || [lindex $args 0 1] in $checklist || [lindex $args 0 2] eq "configure"} {
     $canvas delete all
     set i [$text index @0,0]
     while true {
       set dline [$text dlineinfo $i]
       if {[llength $dline] == 0} {break}
       set height [lindex $dline 3]
-      set y [lindex $dline 1]
+      set y [expr [lindex $dline 1] + $tEdit::spacing1]
       set linenum [lindex [split $i .] 0]
+      set width [expr {[font measure [$text cget -font] $linenum] + 5}]
+      $canvas configure -width $width
       $canvas create text 2 $y -anchor nw -text $linenum \
         -font [$text cget -font] -fill [$text cget -foreground]
       set i [$text index "${i}+1line"]
@@ -620,11 +621,13 @@ proc lineNumbers {text canvas args} {
 }
 
 proc toggleLineNumbers {show} {
-  append canvas [.nb select] ".canvas"
   append text [.nb select] ".text"
+  append canvas [.nb select] ".canvas"
   if {$show eq "true"} {
     bind $text <Configure> [list lineNumbers $text $canvas]
-    trace add execution $text leave [list lineNumbers $text $canvas]
+    if {[trace info execution $text] eq ""} {
+      trace add execution $text leave [list lineNumbers $text $canvas]
+    }
     grid $canvas
   } else {
     bind $text <Configure> {return 0}
@@ -653,7 +656,7 @@ proc toggleView {widget show} {
 proc setTabstop {tabs2spaces tabstop} {
   append text [.nb select] ".text"
   if {$tabs2spaces eq "true"} {
-    bind Text <Tab> [list $text insert insert [string repeat " " $tEdit::tabstop]]
+    bind Text <Tab> [list $text insert insert [string repeat " " $tabstop]]
   } else {
     bind Text <Tab> [list $text insert insert "\t"]
   }
@@ -679,6 +682,7 @@ proc setSpacing {type spacing} {
 
 proc colorScheme {colorscheme} {
   append text [.nb select] ".text"
+  append canvas [.nb select] ".canvas"
   switch -- $colorscheme {
     amber {
       array set color {
@@ -733,6 +737,7 @@ proc colorScheme {colorscheme} {
     -background [$text cget -foreground]
   $text tag configure tag_search_all -foreground [$text cget -foreground] \
     -background $color(highlight)
+  $canvas configure -background [$text tag cget tag_search_all -background]
 }
 
 proc base64Encode {} {
@@ -787,8 +792,7 @@ proc focusTab {tab} {
     setSpacing "-${spacing}" [set "tEdit::${spacing}"]
   }
   colorScheme $tEdit::colors
-  set tEdit::linenumbers \
-    [expr {[trace info execution $text] eq "" ? "false" : "true"}]
+  toggleLineNumbers $tEdit::linenumbers
   # keep focusing the text widget while traversing tabs
   focus $text
 }
