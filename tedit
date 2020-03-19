@@ -372,45 +372,49 @@ proc foldText {text} {
     showMessage "select lines to fold"
     return 1
   }
-  if {[set fold_sum [$text count -lines {*}$selected]] < 1} {
+  if {[set fold_sum [$text count -lines {*}$selected]] == 0} {
     showMessage "cannot fold a single line"
     return 1
   }
   scan $selected {%d.%d %d.%d} yfrom xfrom yto xto
-  # check if a fold exists in current selection
+  # check if any folds exist in current selection
   foreach old_fold $tEdit::folds($text) {
     scan [$text tag ranges $old_fold] {%d.%d %d.%d} old_yfrom old_xfrom old_yto old_xto
     if {$yfrom <= $old_yfrom && $yto >= $old_yto} {
       $old_fold invoke
     }
   }
+  set first "${yfrom}.0"
+  set last "${yto}.end"
   # get first line text to show in fold button
-  set fold_text [$text get "${yfrom}.0" "${yfrom}.end"]
+  set fold_text [$text get $first "${yfrom}.end"]
   set button_text "\u25b6\u25b6 [incr fold_sum] lines: $fold_text"
   set fold "${text}.fold${yfrom}-${yto}"
-  tk::button $fold -text $button_text -padx 0 -pady 0 -relief flat \
+  tk::button $fold -text $button_text -relief flat -padx 0 -pady 0 \
     -takefocus 0 -cursor "hand2" -font [$text cget -font] \
-    -command [list unfoldText $fold $text]
-  $text tag add $fold "${yfrom}.0" "${yto}.end"
+    -command [list unfoldText $text $fold $first $last]
+  $text tag add $fold $first $last
   $text tag configure $fold -elide true
-  $text window create "${yfrom}.0" -window $fold
-  $text mark set insert "${yto}.0+1line"
+  $text window create $first -window $fold
+  $text mark set insert "${last}+1line"
   $text tag remove sel {*}$selected
   lappend tEdit::folds($text) $fold
   .menu.edit entryconfigure "Unfold All" -state normal
 }
 
-proc unfoldText {which text} {
+proc unfoldText {text which first last} {
   switch -- $which {
     all {
       foreach fold $tEdit::folds($text) {
         $text tag configure $fold -elide false
+        $text tag remove $fold $first $last
         destroy $fold
       }
       set tEdit::folds($text) [list]
     }
     default {
       $text tag configure $which -elide false
+      $text tag remove $which $first $last
       destroy $which
       set tEdit::folds($text) [lsearch -inline -all -not -exact $tEdit::folds($text) $which]
     }
@@ -602,7 +606,8 @@ proc markDelete {which} {
 
 proc lineNumbers {text canvas args} {
   set checklist "configure delete insert see yview"
-  if {[llength $args] == 0 || [lindex $args 0 1] in $checklist || [lindex $args 0 2] eq "configure"} {
+  if {[llength $args] == 0 || [lindex $args 0 1] in $checklist \
+    || [lindex $args 0 4] eq "-elide"} {
     $canvas delete all
     set i [$text index @0,0]
     while true {
@@ -665,14 +670,14 @@ proc setTabstop {tabs2spaces tabstop} {
 
 proc selectFont {text font} {
   $text configure -font [font actual $font]
+  $text configure -tabs "[expr {$tEdit::tabstop * [font measure [$text cget -font] 0]}] left"
 }
 
-proc setFont {tabstop} {
+proc setFont {} {
   set text "[.nb select].text"
   tk fontchooser configure -title "Select Font" -parent . \
     -font [$text cget -font] -command [list selectFont $text]
   tk fontchooser show
-  $text configure -tabs "[expr {$tabstop * [font measure [$text cget -font] 0]}] left"
 }
 
 proc setSpacing {type spacing} {
@@ -952,12 +957,12 @@ proc createMenus {} {
       -accelerator "Ctrl+V" -command {tk_textPaste [.nb select].text}
     .menu.edit add separator
     .menu.edit add command -label "Select All" -underline 7 \
-      -accelerator "Ctrl+A" -command {selectAll [.nb select].text}
+      -accelerator "Ctrl+A" -command {selectAll "[.nb select].text"}
     .menu.edit add separator
     .menu.edit add command -label "Fold Lines" -underline 0 \
-      -accelerator "Ctrl+J" -command {foldText [.nb select].text}
+      -accelerator "Ctrl+J" -command {foldText "[.nb select].text"}
     .menu.edit add command -label "Unfold All" -underline 1 \
-      -accelerator "Ctrl+Shift+J" -command {unfoldText all [.nb select].text}
+      -accelerator "Ctrl+Shift+J" -command {unfoldText "[.nb select].text" "all"}
   .menu add cascade -label "Search" -underline 0 -menu [menu .menu.search]
     .menu.search add checkbutton -label "Show Search" -underline 0 \
       -accelerator "Ctrl+F" \
@@ -1019,7 +1024,7 @@ proc createMenus {} {
       -command {[.nb select].text configure -blockcursor $tEdit::blockcursor}
     .menu.options add separator
     .menu.options add command -label "Set Font..." -underline 4 \
-      -command {setFont $tEdit::tabstop}
+      -command {setFont}
     .menu.options add cascade -label "Line Spacing" -underline 0 \
       -menu [menu .menu.options.spacing]
       .menu.options.spacing add cascade -label "Space Above Lines" -underline 6 \
