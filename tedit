@@ -58,6 +58,8 @@ namespace eval tEdit {
 
   variable dndstart    {}
   variable aftercmd    {}
+
+  variable textfont    {TkFixedFont}
 }
 
 ################################################################################
@@ -103,9 +105,9 @@ proc newTab {{position ""} {filename ""}} {
   ttk::frame $tab(tab)
     tk::canvas $tab(canvas) -width 10 -highlightthickness 0 -background "#FFFF00"
     tk::text $tab(text) -relief sunken -highlightthickness 0 -takefocus 1 \
-      -undo true -autoseparators true -maxundo 0 -blockcursor $tEdit::blockcursor \
-      -insertunfocussed hollow -wrap $tEdit::wrap \
-      -tabstyle wordprocessor -tabs $tEdit::tabstop \
+      -font $tEdit::textfont -undo true -maxundo 0 -autoseparators true \
+      -insertunfocussed hollow -wrap $tEdit::wrap -tabstyle wordprocessor \
+      -tabs $tEdit::tabstop -blockcursor $tEdit::blockcursor \
       -spacing1 $tEdit::spacing1 -spacing2 $tEdit::spacing2 -spacing3 $tEdit::spacing3 \
       -yscrollcommand [list $tab(yscroll) set] \
       -xscrollcommand [list $tab(xscroll) set]
@@ -125,6 +127,9 @@ proc newTab {{position ""} {filename ""}} {
     # remove canvas from view
     grid remove $tab(canvas)
 
+  # need to disable this for Tabs Traversal
+  bind $tab(text) <Control-Tab> {return 0}
+
   if {$filename eq ""} {
     set filename "Untitled $tEdit::untitlednum"
     incr tEdit::untitlednum
@@ -139,6 +144,7 @@ proc newTab {{position ""} {filename ""}} {
     incr position
   }
   $nb insert $position $tab(tab) -text $filename
+  tabOptions new $tab(tab)
   $nb select $tab(tab)
   focus $tab(text)
   return $tab(text)
@@ -344,9 +350,9 @@ proc toggleBrowser {show} {
   }
 }
 
-proc autoIndent {indent} {
-  if {$indent eq "true"} {
-    bind Text <Return> {
+proc autoIndent {text} {
+  if {$tEdit::autoindent eq "true"} {
+    bind $text <Return> {
       # find the whitespace at the start of the current line
       set first [%W index "insert linestart"]
       set last [%W index "insert lineend"]
@@ -358,7 +364,7 @@ proc autoIndent {indent} {
       break
     }
   } else {
-    bind Text <Return> {
+    bind $text <Return> {
       %W insert insert "\n"
       %W see insert
       break
@@ -625,9 +631,7 @@ proc lineNumbers {text canvas args} {
   }
 }
 
-proc toggleLineNumbers {show} {
-  set text "[.nb select].text"
-  set canvas "[.nb select].canvas"
+proc toggleLineNumbers {text canvas show} {
   if {$show eq "true"} {
     bind $text <Configure> [list lineNumbers $text $canvas]
     if {[trace info execution $text] eq ""} {
@@ -658,36 +662,39 @@ proc toggleView {widget show} {
   }
 }
 
-proc setTabstop {tabs2spaces tabstop} {
-  set text "[.nb select].text"
-  if {$tabs2spaces eq "true"} {
-    bind Text <Tab> [list $text insert insert [string repeat " " $tabstop]]
+proc setTabKey {text} {
+  if {$tEdit::tabs2spaces eq "true"} {
+    set tabstring [string repeat " " $tEdit::tabstop]
   } else {
-    bind Text <Tab> [list $text insert insert "\t"]
+    set tabstring "\t"
   }
-  $text configure -tabs "[expr {$tabstop * [font measure [$text cget -font] 0]}] left"
+  bind $text <Tab> [list $text insert insert $tabstring]
 }
 
-proc selectFont {text font} {
-  $text configure -font [font actual $font]
+proc configureTabstop {text} {
   $text configure -tabs "[expr {$tEdit::tabstop * [font measure [$text cget -font] 0]}] left"
 }
 
-proc setFont {} {
-  set text "[.nb select].text"
+proc selectFont {font} {
+  set tEdit::textfont $font
+  foreach tab [.nb tabs] {
+    set text "${tab}.text"
+    $text configure -font [font actual $font]
+    configureTabstop $text
+  }
+}
+
+proc setFont {text} {
   tk fontchooser configure -title "Select Font" -parent . \
-    -font [$text cget -font] -command [list selectFont $text]
+    -font [$text cget -font] -command {selectFont}
   tk fontchooser show
 }
 
-proc setSpacing {type spacing} {
-  set text "[.nb select].text"
+proc setSpacing {text type spacing} {
   $text configure $type $spacing
 }
 
-proc colorScheme {colorscheme} {
-  set text "[.nb select].text"
-  set canvas "[.nb select].canvas"
+proc colorScheme {text canvas colorscheme} {
   switch -- $colorscheme {
     amber {
       array set color {
@@ -773,6 +780,40 @@ proc base64Encode {} {
   showMessage "Encoding finished"
 }
 
+proc tabOptions {arg {tab ""}} {
+  if {$arg eq "new" && $tab ne ""} {
+    set text "${tab}.text"
+    set canvas "${tab}.canvas"
+    toggleLineNumbers $text $canvas $tEdit::linenumbers
+    toggleView "${tab}.yscroll" $tEdit::showyscroll
+    toggleView "${tab}.xscroll" $tEdit::showxscroll
+    autoIndent $text
+    colorScheme $text $canvas $tEdit::colors
+    configureTabstop $text
+    setTabKey $text
+  } else {
+    foreach tab [.nb tabs] {
+      set text "${tab}.text"
+      set canvas "${tab}.canvas"
+      switch -- $arg {
+        LineNumbers {toggleLineNumbers $text $canvas $tEdit::linenumbers}
+        YScroll     {toggleView "${tab}.yscroll" $tEdit::showyscroll}
+        XScroll     {toggleView "${tab}.xscroll" $tEdit::showxscroll}
+        Indent      {autoIndent $text}
+        Wrap        {$text configure -wrap $tEdit::wrap}
+        Cursor      {$text configure -blockcursor $tEdit::blockcursor}
+        Spacing1    {setSpacing $text -spacing1 $tEdit::spacing1}
+        Spacing2    {setSpacing $text -spacing2 $tEdit::spacing2}
+        Spacing3    {setSpacing $text -spacing3 $tEdit::spacing3}
+        ColorScheme {colorScheme $text $canvas $tEdit::colors}
+        TabStop     {configureTabstop $text}
+        TabKey      {setTabKey $text}
+        default     {return 1}
+      }
+    }
+  }
+}
+
 proc focusTab {tab} {
   set tEdit::filepath [file nativename $tEdit::filename($tab)]
   set text "${tab}.text"
@@ -787,17 +828,6 @@ proc focusTab {tab} {
     .menu.marks entryconfigure $item \
       -state [expr {$tEdit::marks($text) eq "" ? "disabled" : "normal"}]
   }
-  toggleLineNumbers $tEdit::linenumbers
-  toggleView "${tab}.yscroll" $tEdit::showyscroll
-  toggleView "${tab}.xscroll" $tEdit::showxscroll
-  autoIndent $tEdit::autoindent
-  $text configure -wrap $tEdit::wrap
-  $text configure -blockcursor $tEdit::blockcursor
-  foreach spacing {spacing1 spacing2 spacing3} {
-    setSpacing "-${spacing}" [set "tEdit::${spacing}"]
-  }
-  colorScheme $tEdit::colors
-  setTabstop $tEdit::tabs2spaces $tEdit::tabstop
   # keep focusing the text widget while traversing tabs
   focus $text
 }
@@ -994,7 +1024,7 @@ proc createMenus {} {
     .menu.show add separator
     .menu.show add checkbutton -label "Line Numbers" -underline 5 \
       -variable tEdit::linenumbers -onvalue "true" -offvalue "false" \
-      -command {toggleLineNumbers $tEdit::linenumbers}
+      -command {tabOptions LineNumbers}
     .menu.show add separator
     .menu.show add checkbutton -label "Menu Bar" -underline 0 \
       -variable tEdit::showmenu -onvalue ".menu" -offvalue "" \
@@ -1004,27 +1034,27 @@ proc createMenus {} {
       -command {toggleView .statusbar $tEdit::showstatus}
     .menu.show add checkbutton -label "Vertical Scrollbar" -underline 0 \
       -variable tEdit::showyscroll -onvalue "true" -offvalue "false" \
-      -command {toggleView [.nb select].yscroll $tEdit::showyscroll}
+      -command {tabOptions YScroll}
     .menu.show add checkbutton -label "Horizontal Scrollbar" -underline 0 \
       -variable tEdit::showxscroll -onvalue "true" -offvalue "false" \
-      -command {toggleView [.nb select].xscroll $tEdit::showxscroll}
+      -command {tabOptions XScroll}
   .menu add cascade -label "Options" -underline 0 -menu [menu .menu.options]
     .menu.options add checkbutton -label "Autoindent" -underline 0 \
       -accelerator "Ctrl+I" \
       -variable tEdit::autoindent -onvalue "true" -offvalue "false" \
-      -command {autoIndent $tEdit::autoindent}
+      -command {tabOptions Indent}
     .menu.options add checkbutton -label "Word Wrap" -underline 5 \
       -accelerator "Ctrl+W" \
       -variable tEdit::wrap -onvalue "word" -offvalue "none" \
-      -command {[.nb select].text configure -wrap $tEdit::wrap}
+      -command {tabOptions Wrap}
     .menu.options add separator
     .menu.options add checkbutton -label "Block Cursor" -underline 0 \
       -accelerator "Ctrl+B" \
       -variable tEdit::blockcursor -onvalue "true" -offvalue "false" \
-      -command {[.nb select].text configure -blockcursor $tEdit::blockcursor}
+      -command {tabOptions Cursor}
     .menu.options add separator
     .menu.options add command -label "Set Font..." -underline 4 \
-      -command {setFont}
+      -command {setFont "[.nb select].text"}
     .menu.options add cascade -label "Line Spacing" -underline 0 \
       -menu [menu .menu.options.spacing]
       .menu.options.spacing add cascade -label "Space Above Lines" -underline 6 \
@@ -1032,21 +1062,21 @@ proc createMenus {} {
         for {set i 0} {$i <= 9} {incr i} {
           .menu.options.spacing.1 add radiobutton -label $i -underline 0 \
             -variable tEdit::spacing1 -value $i \
-            -command {setSpacing -spacing1 $tEdit::spacing1}
+            -command {tabOptions Spacing1}
         }
       .menu.options.spacing add cascade -label "Space Between Warps" -underline 9 \
         -menu [menu .menu.options.spacing.2]
         for {set i 0} {$i <= 9} {incr i} {
           .menu.options.spacing.2 add radiobutton -label $i -underline 0 \
             -variable tEdit::spacing2 -value $i \
-            -command {setSpacing -spacing2 $tEdit::spacing2}
+            -command {tabOptions Spacing2}
         }
       .menu.options.spacing add cascade -label "Space Below Lines" -underline 6 \
         -menu [menu .menu.options.spacing.3]
         for {set i 0} {$i <= 9} {incr i} {
           .menu.options.spacing.3 add radiobutton -label $i -underline 0 \
             -variable tEdit::spacing3 -value $i \
-            -command {setSpacing -spacing3 $tEdit::spacing3}
+            -command {tabOptions Spacing3}
         }
     .menu.options add separator
     .menu.options add cascade -label "Colorscheme" -underline 0 \
@@ -1054,7 +1084,7 @@ proc createMenus {} {
       foreach colorscheme {amber black blue brownsugar default gray green salmon sugar} {
         .menu.options.colors add radiobutton -label $colorscheme \
         -variable tEdit::colors -value $colorscheme \
-        -command {colorScheme $tEdit::colors}
+        -command {tabOptions ColorScheme}
       }
     .menu.options add cascade -label "Themes" -underline 0 \
       -menu [menu .menu.options.themes]
@@ -1069,11 +1099,11 @@ proc createMenus {} {
       foreach i [list 2 4 6 7 8] {
         .menu.options.tabstop add radiobutton -label $i -underline 0 \
           -variable tEdit::tabstop -value $i \
-          -command {setTabstop $tEdit::tabs2spaces $tEdit::tabstop}
+          -command {tabOptions TabStop}
       }
     .menu.options add checkbutton -label "Tabs to Spaces" -underline 8 \
       -variable tEdit::tabs2spaces -onvalue "true" -offvalue "false" \
-      -command {setTabstop $tEdit::tabs2spaces $tEdit::tabstop}
+      -command {tabOptions TabKey}
   .menu add cascade -label "Help" -underline 0 -menu [menu .menu.help]
     .menu.help add command -label "System Details..." -underline 0 \
       -command {systemDetails}
@@ -1287,8 +1317,6 @@ proc createBindings {} {
   }
   # make Return and Keypad-Enter keys behave the same
   bind all <KP_Enter> {event generate %W <Return>}
-  # make all TAB keys behave the same
-  catch {bind all <ISO_Left_Tab> {event generate %W <Tab>}}
 
   # treeview widget bindings
   foreach keysym {<Return> <Double-ButtonRelease-1>} {
