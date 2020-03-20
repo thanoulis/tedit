@@ -372,6 +372,20 @@ proc autoIndent {text} {
   }
 }
 
+proc calculateExpr {text} {
+  if {[$text tag ranges sel] eq ""} {
+    set first [$text index "insert linestart"]
+    set last [$text index "insert lineend"]
+  } else {
+    set first [$text index sel.first]
+    set last [$text index sel.last]
+  }
+  set str [$text get $first $last]
+  if {![catch {set result [expr [string map {/ *1.0/} $str]]}]} {
+    $text insert insert $result
+  }
+}
+
 proc foldText {text} {
   set selected [$text tag ranges sel]
   if {$selected eq ""} {
@@ -966,8 +980,8 @@ proc createMenus {} {
       .menu.file add cascade -label "Recent Files" -underline 0 \
         -state disabled -menu [menu .menu.file.recent]
     .menu.file add separator
-    .menu.file add command -label "Base64 Encode..." -underline 7 \
-      -accelerator "Ctrl+E" -command {base64Encode}
+    .menu.file add command -label "Base64 Encode..." -underline 8 \
+      -accelerator "Ctrl+N" -command {base64Encode}
     .menu.file add separator
     .menu.file add command -label "Close All" -underline 0 \
       -accelerator "Ctrl+Q" -command {closeAll}
@@ -993,6 +1007,9 @@ proc createMenus {} {
       -accelerator "Ctrl+J" -command {foldText "[.nb select].text"}
     .menu.edit add command -label "Unfold All" -underline 1 \
       -accelerator "Ctrl+Shift+J" -command {unfoldText "[.nb select].text" "all"}
+    .menu.edit add separator
+    .menu.edit add command -label "Calculate" -underline 8 \
+      -accelerator "Ctrl+E" -command {calculateExpr "[.nb select].text"}
   .menu add cascade -label "Search" -underline 0 -menu [menu .menu.search]
     .menu.search add checkbutton -label "Show Search" -underline 0 \
       -accelerator "Ctrl+F" \
@@ -1261,24 +1278,18 @@ proc createWidgets {} {
 proc createBindings {} {
   # deactivate some predefined bindings from Text widget
   set bindings [list \
-    <Tab> \
-    <Control-Tab> \
-    <Control-Shift-Tab> \
-    <Control-a> \
-    <Control-b> \
-    <Control-e> \
-    <Control-f> \
-    <Control-i> \
-    <Control-o> \
-    <Control-t> \
-    <Control-z> \
-    <Control-Z>]
+    <Tab> <Control-Tab> <Control-Shift-Tab> <Control-a> <Control-b> <Control-e> \
+    <Control-f> <Control-i> <Control-j> <Control-J> <Control-l> <Control-n> \
+    <Control-m> <Control-M> <Control-o> <Control-q> <Control-Q> <Control-s> \
+    <Control-S> <Control-t> <Control-w> <Control-z> <Control-Z>
+  ]
   foreach keysym $bindings {
     bind Text $keysym {return 0}
   }
   # text widget bindings
   bind Text <<Modified>> {setModified %W}
   bind Text <<UndoStack>> {undoStack %W}
+  bind Text <Control-e> {.menu.edit invoke "Calculate"}
   bind Text <ButtonPress-3> {focus %W; tk_popup .menu.edit %X %Y}
   bind Text <Control-ButtonPress-3> {focus %W; tk_popup .menu %X %Y}
   bind Text <Control-ButtonRelease-1> {.menu.marks invoke "Mark Toggle"}
@@ -1289,7 +1300,7 @@ proc createBindings {} {
   bind all <Control-o>  {.menu.file invoke "Open..."}
   bind all <Control-s>  {.menu.file invoke "Save"}
   bind all <Control-S>  {.menu.file invoke "Save As..."}
-  bind all <Control-e>  {.menu.file invoke "Base64 Encode..."}
+  bind all <Control-n>  {.menu.file invoke "Base64 Encode..."}
   bind all <Control-q>  {.menu.file invoke "Close All"}
   bind all <Control-Q>  {.menu.file invoke "Exit"}
   bind all <Control-z>  {.menu.edit invoke "Undo"}
