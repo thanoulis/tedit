@@ -3,9 +3,9 @@
 
 ##### Features:
 * Tabs
-* Mark Lines
 * Word Wrap
 * Autoindent
+* Mark Lines
 * Line Numbers
 * Custom Folding
 * Recent File List
@@ -14,6 +14,7 @@
 * Search/Replace with [Regular Expressions](https://www.tcl.tk/man/tcl/TclCmd/re_syntax.htm) support
 * Tabs Menu (right mouse button)
 * Rearrange Tabs (drag'n'drop)
+* In-Text arithmetic calculations
 * Tk Themes
 * Colors and Fonts
 * Customizable Tabs
