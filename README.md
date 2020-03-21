@@ -8,6 +8,7 @@
 * Mark Lines
 * Line Numbers
 * Custom Folding
+* Block Selection
 * Recent File List
 * File Browser Panel
 * Unlimited Undo/Redo
