@@ -1357,11 +1357,15 @@ proc createBindings {} {
     bind Text $keysym {return 0}
   }
   # text widget bindings
-  bind Text <<Modified>> {setModified %W}
-  bind Text <<UndoStack>> {undoStack %W}
-  bind Text <Control-e> {.menu.edit invoke "Calculate"}
-  bind Text <ButtonPress-3> {focus %W; tk_popup .menu.edit %X %Y}
+  bind Text <<Modified>>            {setModified %W}
+  bind Text <<UndoStack>>           {undoStack %W}
+  bind Text <Control-e>             {.menu.edit invoke "Calculate"}
+  bind Text <ButtonPress-3>         {focus %W; tk_popup .menu.edit %X %Y}
   bind Text <Control-ButtonPress-3> {focus %W; tk_popup .menu %X %Y}
+  bind Text <Control-bracketleft>   {event generate %W <<PrevPara>>}
+  bind Text <Control-bracketright>  {event generate %W <<NextPara>>}
+  bind Text <Control-braceleft>     {event generate %W <<SelectPrevPara>>}
+  bind Text <Control-braceright>    {event generate %W <<SelectNextPara>>}
   # binds for block selection
   bind Text <Control-c> {textCutCopy %W "Copy"; break}
   bind Text <Control-x> {textCutCopy %W "Cut" ; break}
