@@ -60,6 +60,7 @@ namespace eval tEdit {
   variable aftercmd    {}
 
   variable textfont    {TkFixedFont}
+  variable blockselect [list]
 }
 
 ################################################################################
@@ -129,6 +130,22 @@ proc newTab {{position ""} {filename ""}} {
 
   # need to disable this for Tabs Traversal
   bind $tab(text) <Control-Tab> {return 0}
+  # binds for block selections
+  bind Text <Control-ButtonPress-1> {
+    set tEdit::blockselect [list %x %y]
+    break
+  }
+  bind $tab(text) <Control-Motion> {
+    if {$tEdit::blockselect ne ""} {
+      blockSelect %W %x %y
+      break
+    }
+  }
+  bind Text <Control-ButtonRelease-1> {
+    blockSelect %W %x %y
+    set tEdit::blockselect [list]
+    break
+  }
 
   if {$filename eq ""} {
     set filename "Untitled $tEdit::untitlednum"
@@ -347,6 +364,59 @@ proc toggleBrowser {show} {
     .main insert 0 .browser
   } else {
     .main forget .browser
+  }
+}
+
+proc textCutCopy {text action} {
+  if {[set selection [$text tag ranges sel]] eq ""} {return 1}
+  if {[llength $selection] > 2} {
+    foreach {first last} $selection {
+      append data [$text get $first $last] "\n"
+      if {$action eq "Cut"} {$text delete $first $last}
+    }
+    set data [string trimright $data "\n"]
+    clipboard clear
+    clipboard append -type STRING -- $data
+  } else {
+    if {$action eq "Copy"} {
+      tk_textCopy $text
+    } else {
+      tk_textCut $text
+    }
+  }
+}
+
+proc blockSelect {text x2 y2} {
+  selection clear
+  set x1 [lindex $tEdit::blockselect 0]
+  set y1 [lindex $tEdit::blockselect 1]
+  if {$x1 > $x2} {
+    set x $x2
+    set endx $x1
+  } else {
+    set x $x1
+    set endx $x2
+  }
+  if {$y1 > $y2} {
+    set y $y2
+    set endy $y1
+  } else {
+    set y $y1
+    set endy $y2
+  }
+  while {$y <= $endy} {
+    $text tag add sel "@$x,$y" "@$endx,$y"
+    incr y
+  }
+}
+
+proc deleteSelection {text} {
+  if {[set selection [$text tag ranges sel]] eq ""} {
+    $text delete insert
+  } else {
+    foreach {first last} $selection {
+      $text delete $first $last
+    }
   }
 }
 
@@ -989,36 +1059,36 @@ proc createMenus {} {
       -accelerator "Ctrl+Shift+Q" -command {exit}
   .menu add cascade -label "Edit" -underline 0 -menu [menu .menu.edit]
     .menu.edit add command -label "Undo" -underline 0 \
-      -accelerator "Ctrl+Z" -command {undoRedo undo [.nb select].text}
+      -accelerator "Ctrl+Z" -command {undoRedo "undo" [.nb select].text}
     .menu.edit add command -label "Redo" -underline 0 \
-      -accelerator "Ctrl+Shift+Z" -command {undoRedo redo [.nb select].text}
+      -accelerator "Ctrl+Shift+Z" -command {undoRedo "redo" [.nb select].text}
     .menu.edit add separator
     .menu.edit add command -label "Cut" -underline 2 \
-      -accelerator "Ctrl+X" -command {tk_textCut [.nb select].text}
+      -accelerator "Ctrl+X" -command {textCutCopy [.nb select].text "Cut"}
     .menu.edit add command -label "Copy" -underline 0 \
-      -accelerator "Ctrl+C" -command {tk_textCopy [.nb select].text}
+      -accelerator "Ctrl+C" -command {textCutCopy [.nb select].text "Copy"}
     .menu.edit add command -label "Paste" -underline 0 \
       -accelerator "Ctrl+V" -command {tk_textPaste [.nb select].text}
     .menu.edit add separator
     .menu.edit add command -label "Select All" -underline 7 \
-      -accelerator "Ctrl+A" -command {selectAll "[.nb select].text"}
+      -accelerator "Ctrl+A" -command {selectAll [.nb select].text}
     .menu.edit add separator
     .menu.edit add command -label "Fold Lines" -underline 0 \
-      -accelerator "Ctrl+J" -command {foldText "[.nb select].text"}
+      -accelerator "Ctrl+J" -command {foldText [.nb select].text}
     .menu.edit add command -label "Unfold All" -underline 1 \
-      -accelerator "Ctrl+Shift+J" -command {unfoldText "[.nb select].text" "all"}
+      -accelerator "Ctrl+Shift+J" -command {unfoldText [.nb select].text "all"}
     .menu.edit add separator
     .menu.edit add command -label "Calculate" -underline 8 \
-      -accelerator "Ctrl+E" -command {calculateExpr "[.nb select].text"}
+      -accelerator "Ctrl+E" -command {calculateExpr [.nb select].text}
   .menu add cascade -label "Search" -underline 0 -menu [menu .menu.search]
     .menu.search add checkbutton -label "Show Search" -underline 0 \
       -accelerator "Ctrl+F" \
       -variable tEdit::showsearch -onvalue "true" -offvalue "false" \
       -command {toggleView .fsearch $tEdit::showsearch}
     .menu.search add command -label "Find Next" -underline 5 \
-      -accelerator "F3" -command {searchOne $tEdit::search nextrange}
+      -accelerator "F3" -command {searchOne $tEdit::search "nextrange"}
     .menu.search add command -label "Find Prev" -underline 5 \
-      -accelerator "Shift+F3" -command {searchOne $tEdit::search prevrange}
+      -accelerator "Shift+F3" -command {searchOne $tEdit::search "prevrange"}
     .menu.search add command -label "Clear Highlight" -underline 0 \
       -accelerator "Ctrl+L" \
       -command {clearHighlight "tag_search tag_search_all"}
@@ -1041,7 +1111,7 @@ proc createMenus {} {
     .menu.show add separator
     .menu.show add checkbutton -label "Line Numbers" -underline 5 \
       -variable tEdit::linenumbers -onvalue "true" -offvalue "false" \
-      -command {tabOptions LineNumbers}
+      -command {tabOptions "LineNumbers"}
     .menu.show add separator
     .menu.show add checkbutton -label "Menu Bar" -underline 0 \
       -variable tEdit::showmenu -onvalue ".menu" -offvalue "" \
@@ -1051,24 +1121,24 @@ proc createMenus {} {
       -command {toggleView .statusbar $tEdit::showstatus}
     .menu.show add checkbutton -label "Vertical Scrollbar" -underline 0 \
       -variable tEdit::showyscroll -onvalue "true" -offvalue "false" \
-      -command {tabOptions YScroll}
+      -command {tabOptions "YScroll"}
     .menu.show add checkbutton -label "Horizontal Scrollbar" -underline 0 \
       -variable tEdit::showxscroll -onvalue "true" -offvalue "false" \
-      -command {tabOptions XScroll}
+      -command {tabOptions "XScroll"}
   .menu add cascade -label "Options" -underline 0 -menu [menu .menu.options]
     .menu.options add checkbutton -label "Autoindent" -underline 0 \
       -accelerator "Ctrl+I" \
       -variable tEdit::autoindent -onvalue "true" -offvalue "false" \
-      -command {tabOptions Indent}
+      -command {tabOptions "Indent"}
     .menu.options add checkbutton -label "Word Wrap" -underline 5 \
       -accelerator "Ctrl+W" \
       -variable tEdit::wrap -onvalue "word" -offvalue "none" \
-      -command {tabOptions Wrap}
+      -command {tabOptions "Wrap"}
     .menu.options add separator
     .menu.options add checkbutton -label "Block Cursor" -underline 0 \
       -accelerator "Ctrl+B" \
       -variable tEdit::blockcursor -onvalue "true" -offvalue "false" \
-      -command {tabOptions Cursor}
+      -command {tabOptions "Cursor"}
     .menu.options add separator
     .menu.options add command -label "Set Font..." -underline 4 \
       -command {setFont "[.nb select].text"}
@@ -1079,21 +1149,21 @@ proc createMenus {} {
         for {set i 0} {$i <= 9} {incr i} {
           .menu.options.spacing.1 add radiobutton -label $i -underline 0 \
             -variable tEdit::spacing1 -value $i \
-            -command {tabOptions Spacing1}
+            -command {tabOptions "Spacing1"}
         }
       .menu.options.spacing add cascade -label "Space Between Warps" -underline 9 \
         -menu [menu .menu.options.spacing.2]
         for {set i 0} {$i <= 9} {incr i} {
           .menu.options.spacing.2 add radiobutton -label $i -underline 0 \
             -variable tEdit::spacing2 -value $i \
-            -command {tabOptions Spacing2}
+            -command {tabOptions "Spacing2"}
         }
       .menu.options.spacing add cascade -label "Space Below Lines" -underline 6 \
         -menu [menu .menu.options.spacing.3]
         for {set i 0} {$i <= 9} {incr i} {
           .menu.options.spacing.3 add radiobutton -label $i -underline 0 \
             -variable tEdit::spacing3 -value $i \
-            -command {tabOptions Spacing3}
+            -command {tabOptions "Spacing3"}
         }
     .menu.options add separator
     .menu.options add cascade -label "Colorscheme" -underline 0 \
@@ -1101,7 +1171,7 @@ proc createMenus {} {
       foreach colorscheme {amber black blue brownsugar default gray green salmon sugar} {
         .menu.options.colors add radiobutton -label $colorscheme \
         -variable tEdit::colors -value $colorscheme \
-        -command {tabOptions ColorScheme}
+        -command {tabOptions "ColorScheme"}
       }
     .menu.options add cascade -label "Themes" -underline 0 \
       -menu [menu .menu.options.themes]
@@ -1116,11 +1186,11 @@ proc createMenus {} {
       foreach i [list 2 4 6 7 8] {
         .menu.options.tabstop add radiobutton -label $i -underline 0 \
           -variable tEdit::tabstop -value $i \
-          -command {tabOptions TabStop}
+          -command {tabOptions "TabStop"}
       }
     .menu.options add checkbutton -label "Tabs to Spaces" -underline 8 \
       -variable tEdit::tabs2spaces -onvalue "true" -offvalue "false" \
-      -command {tabOptions TabKey}
+      -command {tabOptions "TabKey"}
   .menu add cascade -label "Help" -underline 0 -menu [menu .menu.help]
     .menu.help add command -label "System Details..." -underline 0 \
       -command {systemDetails}
@@ -1165,7 +1235,7 @@ proc createWidgets {} {
 
   ttk::panedwindow .main -orient horizontal
     ttk::frame .browser
-      ttk::treeview .tree -selectmode browse \
+      ttk::treeview .tree -takefocus 0 -selectmode browse \
         -columns {fullpath type} -displaycolumns "" \
         -yscrollcommand {.treeyscroll set} -xscrollcommand {.treexscroll set}
         .tree heading #0 -anchor center -text "File Browser"
@@ -1292,7 +1362,11 @@ proc createBindings {} {
   bind Text <Control-e> {.menu.edit invoke "Calculate"}
   bind Text <ButtonPress-3> {focus %W; tk_popup .menu.edit %X %Y}
   bind Text <Control-ButtonPress-3> {focus %W; tk_popup .menu %X %Y}
-  bind Text <Control-ButtonRelease-1> {.menu.marks invoke "Mark Toggle"}
+  # binds for block selection
+  bind Text <Control-c> {textCutCopy %W "Copy"; break}
+  bind Text <Control-x> {textCutCopy %W "Cut" ; break}
+  bind Text <Control-v> {tk_textPaste %W}
+  bind Text <Delete>    {deleteSelection %W; break}
 
   # main window bindings
   bind all <Control-t>  {.menu.file invoke "New Tab"}
