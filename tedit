@@ -61,7 +61,6 @@ namespace eval tEdit {
 
   variable dndstart    {}
   variable aftercmd    {}
-
 }
 
 ################################################################################
@@ -132,7 +131,7 @@ proc newTab {{position ""} {filename ""}} {
 
   # need to disable this for Tabs Traversal
   bind $tab(text) <Control-Tab> {return 0}
-  # binds for block selections
+  # bindings for block selections
   bind Text <Control-ButtonPress-1> {
     set tEdit::blockselect [list %x %y]
     %W mark set insert @%x,%y
@@ -329,8 +328,8 @@ proc undoRedo {command text} {
 }
 
 proc selectAll {text} {
-  if {[$text get 0.0 end-1char] eq ""} {return 1}
-  $text tag add sel 0.0 end-1char
+  if {[$text get 0.0 "end -1 indices"] eq ""} {return 1}
+  $text tag add sel 0.0 "end -1 indices"
 }
 
 proc populateBrowser {node {tree ".tree"}} {
@@ -407,8 +406,8 @@ proc blockSelect {text x2 y2} {
 proc deleteSelection {text key} {
   if {[set selected [$text tag ranges sel]] eq ""} {
     switch -- $key {
-      "Delete"    {$text delete insert}
-      "Backspace" {$text delete insert-1char}
+      "Delete"    {$text delete "insert"}
+      "Backspace" {$text delete "insert -1 indices"}
       default     {return 1}
     }
   } else {
@@ -483,7 +482,7 @@ proc foldText {text} {
   $text tag add $fold $first $last
   $text tag configure $fold -elide true
   $text window create $first -window $fold
-  $text mark set insert "${last}+1line"
+  $text mark set insert "${last} +1 lines"
   $text tag remove sel {*}$selected
   lappend tEdit::folds($text) $fold
   .menu.edit entryconfigure "Unfold All" -state normal
@@ -518,10 +517,10 @@ proc searchOne {what {direction "nextrange"}} {
   }
   set text "[.nb select].text"
   if {$direction eq "prevrange"} {
-    set insert "insert-1char"
+    set insert "insert -1 indices"
     set loop "end-1 end"
   } else {
-    set insert "insert+1char"
+    set insert "insert +1 indices"
     set loop "0 1"
   }
   set tagindex [$text tag $direction tag_search_all $insert]
@@ -555,7 +554,7 @@ proc searchAll {what} {
   } else {
     set count 0
     foreach first $taglist {
-      set last "$first+[lindex $n $count]indices"
+      set last "$first +[lindex $n $count] indices"
       $text tag add tag_search_all $first $last
       incr count
     }
@@ -626,7 +625,7 @@ proc markToggle {} {
     $text tag add $mark $first $last
     lappend tEdit::marks($text) $mark
     foreach item {"Next Mark" "Clear Marks"} {
-    .menu.marks entryconfigure $item -state normal
+      .menu.marks entryconfigure $item -state normal
     }
   } else {
     markDelete $mark
@@ -647,7 +646,7 @@ proc markNext {markbox} {
     showMessage "no marks found"
     return 1
   }
-  set mark [$text mark next "insert+1char"]
+  set mark [$text mark next "insert +1 indices"]
   while {$mark ni $tEdit::marks($text)} {
     if {$mark eq ""} {set mark 0.0}
     set mark [$text mark next $mark]
@@ -707,7 +706,7 @@ proc lineNumbers {text canvas args} {
       $canvas configure -width $width
       $canvas create text 2 $y -anchor nw -text $linenum \
         -font [$text cget -font] -fill [$text cget -foreground]
-      set i [$text index "${i}+1line"]
+      set i [$text index "${i} +1 lines"]
     }
   }
 }
@@ -777,60 +776,22 @@ proc setSpacing {text type spacing} {
 
 proc colorScheme {text canvas colorscheme} {
   switch -- $colorscheme {
-    amber {
-      array set color {
-        foreground "#FFBF00" background "#000000" highlight "#0000FF"
-      }
-    }
-    black {
-      array set color {
-        foreground "#C0C0C0" background "#000000" highlight "#0000FF"
-      }
-    }
-    blue {
-      array set color {
-        foreground "#FFFF00" background "#0000FF" highlight "#444444"
-      }
-    }
-    brownsugar {
-      array set color {
-        foreground "#FF9999" background "#472400" highlight "#000000"
-      }
-    }
-    gray {
-      array set color {
-        foreground "#D6D6D6" background "#4E4E4E" highlight "#0000FF"
-      }
-    }
-    green {
-      array set color {
-        foreground "#00FF00" background "#000000" highlight "#0000FF"
-      }
-    }
-    salmon {
-      array set color {
-        foreground "#222200" background "#CA607B" highlight "#DED494"
-      }
-    }
-    sugar {
-      array set color {
-        foreground "#000000" background "#EEEEEE" highlight "#FFFF00"
-      }
-    }
-    default {
-      array set color {
-        foreground "#000000" background "#FFFFFF" highlight "#FFFF00"
-      }
-    }
+    amber      {array set color {fg "#FFBF00" bg "#000000" hl "#0000FF"}}
+    black      {array set color {fg "#C0C0C0" bg "#000000" hl "#0000FF"}}
+    blue       {array set color {fg "#FFFF00" bg "#0000FF" hl "#444444"}}
+    brownsugar {array set color {fg "#FF9999" bg "#472400" hl "#000000"}}
+    gray       {array set color {fg "#D6D6D6" bg "#4E4E4E" hl "#0000FF"}}
+    green      {array set color {fg "#00FF00" bg "#000000" hl "#0000FF"}}
+    salmon     {array set color {fg "#222200" bg "#CA607B" hl "#DED494"}}
+    sugar      {array set color {fg "#000000" bg "#EEEEEE" hl "#FFFF00"}}
+    default    {array set color {fg "#000000" bg "#FFFFFF" hl "#FFFF00"}}
   }
-  $text configure -insertbackground $color(foreground)
-  $text configure -foreground $color(foreground)
-  $text configure -background $color(background)
-  $text tag configure tag_search -foreground $color(highlight) \
-    -background [$text cget -foreground]
-  $text tag configure tag_search_all -foreground [$text cget -foreground] \
-    -background $color(highlight)
-  $canvas configure -background [$text tag cget tag_search_all -background]
+  $canvas configure -background $color(hl)
+  $text configure -foreground $color(fg)
+  $text configure -background $color(bg)
+  $text configure -insertbackground $color(fg)
+  $text tag configure tag_search -foreground $color(hl) -background $color(fg)
+  $text tag configure tag_search_all -foreground $color(fg) -background $color(hl)
 }
 
 proc base64Encode {} {
@@ -968,9 +929,9 @@ proc dragTab {W x y X Y} {
 }
 
 proc dropTab {W x y} {
+  focus [.nb select].text
   if {$tEdit::aftercmd ne ""} {
     after cancel $tEdit::aftercmd
-    focus [.nb select].text
     return 0
   }
   $W configure -cursor "left_ptr"
@@ -987,7 +948,6 @@ proc dropTab {W x y} {
   set tEdit::dndstart ""
   bind $W <Motion> {return 0}
   destroy .dnd
-  focus [.nb select].text
 }
 
 proc moveTab {W x y X Y} {
@@ -1352,16 +1312,16 @@ proc createBindings {} {
     bind Text $keysym {return 0}
   }
   # text widget bindings
-  bind Text <<Modified>>            {setModified %W}
-  bind Text <<UndoStack>>           {undoStack %W}
-  bind Text <Control-x>             {.menu.edit invoke "Cut"}
-  bind Text <Control-c>             {.menu.edit invoke "Copy"}
-  bind Text <Control-v>             {.menu.edit invoke "Paste"}
-  bind Text <Control-a>             {.menu.edit invoke "Select All"}
-  bind Text <Control-j>             {.menu.edit invoke "Fold Lines"}
-  bind Text <Control-J>             {.menu.edit invoke "Unfold All"}
-  bind Text <Control-e>             {.menu.edit invoke "Calculate"}
-  bind Text <Control-m>             {.menu.marks invoke "Mark Toggle"}
+  bind Text <<Modified>>  {setModified %W}
+  bind Text <<UndoStack>> {undoStack %W}
+  bind Text <Control-x>   {.menu.edit invoke "Cut"}
+  bind Text <Control-c>   {.menu.edit invoke "Copy"}
+  bind Text <Control-v>   {.menu.edit invoke "Paste"}
+  bind Text <Control-a>   {.menu.edit invoke "Select All"}
+  bind Text <Control-j>   {.menu.edit invoke "Fold Lines"}
+  bind Text <Control-J>   {.menu.edit invoke "Unfold All"}
+  bind Text <Control-e>   {.menu.edit invoke "Calculate"}
+  bind Text <Control-m>   {.menu.marks invoke "Mark Toggle"}
   bind Text <ButtonPress-3>         {focus %W; tk_popup .menu.edit %X %Y}
   bind Text <Control-ButtonPress-3> {focus %W; tk_popup .menu %X %Y}
   bind Text <Control-bracketleft>   {event generate %W <<PrevPara>>}
