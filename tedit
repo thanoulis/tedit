@@ -482,12 +482,12 @@ proc foldText {text} {
   .menu.edit entryconfigure "Unfold All" -state normal
 }
 
-proc unfoldText {text which first last} {
+proc unfoldText {text which {first ""} {last ""}} {
   switch -- $which {
     all {
       foreach fold $tEdit::folds($text) {
         $text tag configure $fold -elide false
-        $text tag remove $fold $first $last
+        $text tag remove $fold "$fold.first" "$fold.last"
         destroy $fold
       }
       set tEdit::folds($text) [list]
