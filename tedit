@@ -25,12 +25,14 @@ namespace eval tEdit {
     {{Rust Files} {*.rs *.RS}}
     {{Tcl Files} {*.tcl *.TCL}}
   }
+  variable textfont    {TkFixedFont}
   variable browser     {false}
   variable recent      [list]
   variable filepath    {}
   variable modified    {}
   variable wrap        {none}
   variable showmenu    {.menu}
+  variable blinkcursor 300
   variable blockcursor {false}
   variable showmarks   {false}
   variable showstatus  {true}
@@ -43,6 +45,7 @@ namespace eval tEdit {
   variable spacing1    0
   variable spacing2    0
   variable spacing3    0
+  variable blockselect [list]
 
   variable theme       [ttk::style theme use]
   variable colors      {default}
@@ -59,8 +62,6 @@ namespace eval tEdit {
   variable dndstart    {}
   variable aftercmd    {}
 
-  variable textfont    {TkFixedFont}
-  variable blockselect [list]
 }
 
 ################################################################################
@@ -107,11 +108,12 @@ proc newTab {{position ""} {filename ""}} {
     tk::canvas $tab(canvas) -width 10 -highlightthickness 0 -background "#FFFF00"
     tk::text $tab(text) -relief sunken -highlightthickness 0 -takefocus 1 \
       -font $tEdit::textfont -undo true -maxundo 0 -autoseparators true \
-      -insertunfocussed hollow -wrap $tEdit::wrap -tabstyle wordprocessor \
-      -tabs $tEdit::tabstop -blockcursor $tEdit::blockcursor \
+      -insertunfocussed hollow -wrap $tEdit::wrap \
+      -tabstyle wordprocessor -tabs $tEdit::tabstop \
+      -blockcursor $tEdit::blockcursor -insertofftime $tEdit::blinkcursor \
       -spacing1 $tEdit::spacing1 -spacing2 $tEdit::spacing2 -spacing3 $tEdit::spacing3 \
-      -yscrollcommand [list $tab(yscroll) set] \
-      -xscrollcommand [list $tab(xscroll) set]
+      -xscrollcommand [list $tab(xscroll) set] \
+      -yscrollcommand [list $tab(yscroll) set]
       # text tags management and starting colors
       $tab(text) tag configure tag_search     -foreground "#FFFF00" -background "#000000"
       $tab(text) tag configure tag_search_all -foreground "#000000" -background "#FFFF00"
@@ -390,20 +392,8 @@ proc blockSelect {text x2 y2} {
   selection clear
   set x1 [lindex $tEdit::blockselect 0]
   set y1 [lindex $tEdit::blockselect 1]
-  if {$x1 > $x2} {
-    set x $x2
-    set endx $x1
-  } else {
-    set x $x1
-    set endx $x2
-  }
-  if {$y1 > $y2} {
-    set y $y2
-    set endy $y1
-  } else {
-    set y $y1
-    set endy $y2
-  }
+  if {$x1 > $x2} {set x $x2;set endx $x1} else {set x $x1;set endx $x2}
+  if {$y1 > $y2} {set y $y2;set endy $y1} else {set y $y1;set endy $y2}
   while {$y <= $endy} {
     $text tag add sel "@$x,$y" "@$endx,$y"
     incr y
@@ -884,8 +874,9 @@ proc tabOptions {arg {tab ""}} {
         YScroll     {toggleView "${tab}.yscroll" $tEdit::showyscroll}
         XScroll     {toggleView "${tab}.xscroll" $tEdit::showxscroll}
         Indent      {autoIndent $text}
-        Wrap        {$text configure -wrap $tEdit::wrap}
-        Cursor      {$text configure -blockcursor $tEdit::blockcursor}
+        WordWrap    {$text configure -wrap $tEdit::wrap}
+        BlinkCursor {$text configure -insertofftime $tEdit::blinkcursor}
+        BlockCursor {$text configure -blockcursor $tEdit::blockcursor}
         Spacing1    {setSpacing $text -spacing1 $tEdit::spacing1}
         Spacing2    {setSpacing $text -spacing2 $tEdit::spacing2}
         Spacing3    {setSpacing $text -spacing3 $tEdit::spacing3}
@@ -1034,9 +1025,9 @@ proc createMenus {} {
   option add *tearOff false
   . configure -menu [menu .menu]
   .menu add cascade -label "File" -underline 0 -menu [menu .menu.file]
-    .menu.file add command -label "New Tab" -underline 4 \
-      -accelerator "Ctrl+T" -command {newTab [.nb index current]}
-    .menu.file add command -label "Close Tab" -underline 1 \
+    .menu.file add command -label "New Tab" -underline 0 \
+      -accelerator "Ctrl+N" -command {newTab [.nb index current]}
+    .menu.file add command -label "Close Tab" -underline 0 \
       -accelerator "Ctrl+F4" -command {closeTab [.nb select]}
     .menu.file add separator
     .menu.file add command -label "Open..." -underline 0 \
@@ -1050,10 +1041,10 @@ proc createMenus {} {
       .menu.file add cascade -label "Recent Files" -underline 0 \
         -state disabled -menu [menu .menu.file.recent]
     .menu.file add separator
-    .menu.file add command -label "Base64 Encode..." -underline 8 \
-      -accelerator "Ctrl+N" -command {base64Encode}
+    .menu.file add command -label "Base64 Encode..." -underline 0 \
+      -command {base64Encode}
     .menu.file add separator
-    .menu.file add command -label "Close All" -underline 0 \
+    .menu.file add command -label "Close All" -underline 1 \
       -accelerator "Ctrl+Q" -command {closeAll}
     .menu.file add command -label "Exit" -underline 1 \
       -accelerator "Ctrl+Shift+Q" -command {exit}
@@ -1127,18 +1118,18 @@ proc createMenus {} {
       -command {tabOptions "XScroll"}
   .menu add cascade -label "Options" -underline 0 -menu [menu .menu.options]
     .menu.options add checkbutton -label "Autoindent" -underline 0 \
-      -accelerator "Ctrl+I" \
       -variable tEdit::autoindent -onvalue "true" -offvalue "false" \
       -command {tabOptions "Indent"}
     .menu.options add checkbutton -label "Word Wrap" -underline 5 \
-      -accelerator "Ctrl+W" \
       -variable tEdit::wrap -onvalue "word" -offvalue "none" \
-      -command {tabOptions "Wrap"}
+      -command {tabOptions "WordWrap"}
     .menu.options add separator
-    .menu.options add checkbutton -label "Block Cursor" -underline 0 \
-      -accelerator "Ctrl+B" \
+    .menu.options add checkbutton -label "Blink Cursor" -underline 0 \
+      -variable tEdit::blinkcursor -onvalue "300" -offvalue "0" \
+      -command {tabOptions "BlinkCursor"}
+    .menu.options add checkbutton -label "Block Cursor" -underline 4 \
       -variable tEdit::blockcursor -onvalue "true" -offvalue "false" \
-      -command {tabOptions "Cursor"}
+      -command {tabOptions "BlockCursor"}
     .menu.options add separator
     .menu.options add command -label "Set Font..." -underline 4 \
       -command {setFont "[.nb select].text"}
@@ -1173,7 +1164,7 @@ proc createMenus {} {
         -variable tEdit::colors -value $colorscheme \
         -command {tabOptions "ColorScheme"}
       }
-    .menu.options add cascade -label "Themes" -underline 0 \
+    .menu.options add cascade -label "Themes" -underline 3 \
       -menu [menu .menu.options.themes]
       foreach theme [ttk::style theme names] {
         .menu.options.themes add radiobutton -label $theme \
@@ -1348,10 +1339,10 @@ proc createWidgets {} {
 proc createBindings {} {
   # deactivate some predefined bindings from Text widget
   set bindings [list \
-    <Tab> <Control-Tab> <Control-Shift-Tab> <Control-a> <Control-b> <Control-e> \
-    <Control-f> <Control-i> <Control-j> <Control-J> <Control-l> <Control-n> \
-    <Control-m> <Control-M> <Control-o> <Control-q> <Control-Q> <Control-s> \
-    <Control-S> <Control-t> <Control-w> <Control-z> <Control-Z>
+    <Tab> <Control-Tab> <Control-Shift-Tab> <Control-a> <Control-e> <Control-f> \
+    <Control-j> <Control-J> <Control-k> <Control-l> <Control-m> <Control-M> \
+    <Control-n> <Control-o> <Control-q> <Control-Q> <Control-s> <Control-S> \
+    <Control-z> <Control-Z>
   ]
   foreach keysym $bindings {
     bind Text $keysym {return 0}
@@ -1373,12 +1364,11 @@ proc createBindings {} {
   bind Text <Delete>    {deleteSelection %W; break}
 
   # main window bindings
-  bind all <Control-t>  {.menu.file invoke "New Tab"}
+  bind all <Control-n>  {.menu.file invoke "New Tab"}
   bind all <Control-F4> {.menu.file invoke "Close Tab"}
   bind all <Control-o>  {.menu.file invoke "Open..."}
   bind all <Control-s>  {.menu.file invoke "Save"}
   bind all <Control-S>  {.menu.file invoke "Save As..."}
-  bind all <Control-n>  {.menu.file invoke "Base64 Encode..."}
   bind all <Control-q>  {.menu.file invoke "Close All"}
   bind all <Control-Q>  {.menu.file invoke "Exit"}
   bind all <Control-z>  {.menu.edit invoke "Undo"}
@@ -1395,9 +1385,6 @@ proc createBindings {} {
   bind all <F5>         {.menu.marks invoke "Next Mark"}
   bind all <Control-M>  {.menu.marks invoke "Clear Marks"}
   bind all <F2>         {.menu.show invoke "File Browser"}
-  bind all <Control-i>  {.menu.options invoke "Autoindent"}
-  bind all <Control-w>  {.menu.options invoke "Word Wrap"}
-  bind all <Control-b>  {.menu.options invoke "Block Cursor"}
   bind all <F1>         {.menu.help invoke "About tEdit..."}
   # toggle menu "Set Font..." state
   bind all <<TkFontchooserVisibility>> {
