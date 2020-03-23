@@ -18,8 +18,8 @@
 * In-Text arithmetic calculations
 * Tk Themes
 * Colors and Fonts
-* Customizable Tabs
-* Spaces instead of Tabs
+* Soft Tabs (Spaces instead of Tab)
+* Customizable Tab Size
 * Line Spacing (above/below lines and wraps)
 * Base64 Encoder
 * Command Line Support
