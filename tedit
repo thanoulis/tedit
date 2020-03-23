@@ -335,11 +335,11 @@ proc selectAll {text} {
 proc populateBrowser {node {tree ".tree"}} {
   set path [$tree set $node fullpath]
   $tree delete [$tree children $node]
-  if {[catch {glob -nocomplain -dir $path *} msg]} {
+  if {[catch {glob -nocomplain -directory $path *} msg]} {
     showMessage [lindex [split $msg :] 1]
     return 1
   }
-  foreach f [lsort -dictionary [glob -nocomplain -dir $path *]] {
+  foreach f [lsort -dictionary [glob -nocomplain -directory $path *]] {
     set type [file type $f]
     set id [$tree insert $node end -text [file tail $f] -values [list $f $type]]
     if {$type eq "directory"} {
@@ -565,7 +565,7 @@ proc searchAll {what} {
 
 proc replaceOne {what with} {
   set text "[.nb select].text"
-  if {$with ni $tEdit:::hreplace} {
+  if {$with ni $tEdit::hreplace} {
     lappend tEdit::hreplace $with
   }
   set taglist [$text tag ranges tag_search]
@@ -700,7 +700,7 @@ proc lineNumbers {text canvas args} {
       set dline [$text dlineinfo $i]
       if {[llength $dline] == 0} {break}
       set height [lindex $dline 3]
-      set y [expr [lindex $dline 1] + $tEdit::spacing1]
+      set y [expr {[lindex $dline 1] + $tEdit::spacing1}]
       set linenum [lindex [split $i .] 0]
       set width [expr {[font measure [$text cget -font] $linenum] + 5}]
       $canvas configure -width $width
@@ -1413,11 +1413,11 @@ wm protocol . WM_DELETE_WINDOW {.menu.file invoke "Close All"}
 if {$::argc > 0} {
   foreach filename $::argv {
     if {[file exists $filename]} {
-        openFile $filename
-      } else {
-        newTab "" $filename
-      }
+      openFile $filename
+    } else {
+      newTab "" $filename
     }
+  }
   if {[llength [.nb tabs]] == 0} {exit 1}
 } else {
   newTab
