@@ -40,7 +40,7 @@ namespace eval tEdit {
   variable showyscroll {true}
   variable showxscroll {true}
   variable autoindent  {true}
-  variable tabstop     2
+  variable tabsize     2
   variable tabs2spaces {true}
   variable spacing1    0
   variable spacing2    0
@@ -108,7 +108,7 @@ proc newTab {{position ""} {filename ""}} {
     tk::text $tab(text) -relief sunken -highlightthickness 0 -takefocus 1 \
       -font $tEdit::textfont -undo true -maxundo 0 -autoseparators true \
       -insertunfocussed hollow -wrap $tEdit::wrap \
-      -tabstyle wordprocessor -tabs $tEdit::tabstop \
+      -tabstyle wordprocessor -tabs $tEdit::tabsize \
       -blockcursor $tEdit::blockcursor -insertofftime $tEdit::blinkcursor \
       -spacing1 $tEdit::spacing1 -spacing2 $tEdit::spacing2 -spacing3 $tEdit::spacing3 \
       -xscrollcommand [list $tab(xscroll) set] \
@@ -742,17 +742,18 @@ proc toggleView {widget show} {
   }
 }
 
-proc setTabKey {text} {
+proc toggleSoftTab {text} {
   if {$tEdit::tabs2spaces eq "true"} {
-    set tabstring [string repeat " " $tEdit::tabstop]
+    set tabstring [string repeat " " $tEdit::tabsize]
   } else {
     set tabstring "\t"
   }
   bind $text <Tab> [list $text insert insert $tabstring]
+  configureTabSize $text
 }
 
-proc configureTabstop {text} {
-  $text configure -tabs "[expr {$tEdit::tabstop * [font measure [$text cget -font] 0]}] left"
+proc configureTabSize {text} {
+  $text configure -tabs "[expr {$tEdit::tabsize * [font measure [$text cget -font] 0]}] left"
 }
 
 proc selectFont {font} {
@@ -760,7 +761,7 @@ proc selectFont {font} {
   foreach tab [.nb tabs] {
     set text "${tab}.text"
     $text configure -font [font actual $font]
-    configureTabstop $text
+    configureTabSize $text
   }
 }
 
@@ -831,8 +832,7 @@ proc tabOptions {arg {tab ""}} {
     toggleView "${tab}.xscroll" $tEdit::showxscroll
     autoIndent $text
     colorScheme $text $canvas $tEdit::colors
-    configureTabstop $text
-    setTabKey $text
+    toggleSoftTab $text
   } else {
     foreach tab [.nb tabs] {
       set text "${tab}.text"
@@ -849,8 +849,7 @@ proc tabOptions {arg {tab ""}} {
         Spacing2    {setSpacing $text -spacing2 $tEdit::spacing2}
         Spacing3    {setSpacing $text -spacing3 $tEdit::spacing3}
         ColorScheme {colorScheme $text $canvas $tEdit::colors}
-        TabStop     {configureTabstop $text}
-        TabKey      {setTabKey $text}
+        TabKey      {toggleSoftTab $text}
         default     {return 1}
       }
     }
@@ -1139,14 +1138,14 @@ proc createMenus {} {
           -command [list ttk::style theme use $theme]
       }
     .menu.options add separator
-    .menu.options add cascade -label "Tab Stops" -underline 0 \
-      -menu [menu .menu.options.tabstop]
+    .menu.options add cascade -label "Tab Size" -underline 0 \
+      -menu [menu .menu.options.tabsize]
       foreach i [list 2 4 6 7 8] {
-        .menu.options.tabstop add radiobutton -label $i -underline 0 \
-          -variable tEdit::tabstop -value $i \
-          -command {tabOptions "TabStop"}
+        .menu.options.tabsize add radiobutton -label $i -underline 0 \
+          -variable tEdit::tabsize -value $i \
+          -command {tabOptions "TabKey"}
       }
-    .menu.options add checkbutton -label "Tabs to Spaces" -underline 8 \
+    .menu.options add checkbutton -label "Soft Tabs" -underline 0 \
       -variable tEdit::tabs2spaces -onvalue "true" -offvalue "false" \
       -command {tabOptions "TabKey"}
   .menu add cascade -label "Help" -underline 0 -menu [menu .menu.help]
