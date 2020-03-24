@@ -41,7 +41,7 @@ namespace eval tEdit {
   variable showxscroll {true}
   variable autoindent  {true}
   variable tabsize     2
-  variable tabs2spaces {true}
+  variable softtabs    {true}
   variable spacing1    0
   variable spacing2    0
   variable spacing3    0
@@ -742,8 +742,8 @@ proc toggleView {widget show} {
   }
 }
 
-proc toggleSoftTab {text} {
-  if {$tEdit::tabs2spaces eq "true"} {
+proc toggleSoftTabs {text} {
+  if {$tEdit::softtabs eq "true"} {
     set tabstring [string repeat " " $tEdit::tabsize]
   } else {
     set tabstring "\t"
@@ -756,18 +756,23 @@ proc configureTabSize {text} {
   $text configure -tabs "[expr {$tEdit::tabsize * [font measure [$text cget -font] 0]}] left"
 }
 
-proc selectFont {font} {
+proc setFont {font} {
   set tEdit::textfont $font
   foreach tab [.nb tabs] {
     set text "${tab}.text"
     $text configure -font [font actual $font]
     configureTabSize $text
+    if {$tEdit::folds($text) ne ""} {
+      foreach fold $tEdit::folds($text) {
+        $fold configure -font $font
+      }
+    }
   }
 }
 
-proc setFont {text} {
+proc selectFont {text} {
   tk fontchooser configure -title "Select Font" -parent . \
-    -font [$text cget -font] -command {selectFont}
+    -font [$text cget -font] -command {setFont}
   tk fontchooser show
 }
 
@@ -832,7 +837,7 @@ proc tabOptions {arg {tab ""}} {
     toggleView "${tab}.xscroll" $tEdit::showxscroll
     autoIndent $text
     colorScheme $text $canvas $tEdit::colors
-    toggleSoftTab $text
+    toggleSoftTabs $text
   } else {
     foreach tab [.nb tabs] {
       set text "${tab}.text"
@@ -849,7 +854,7 @@ proc tabOptions {arg {tab ""}} {
         Spacing2    {setSpacing $text -spacing2 $tEdit::spacing2}
         Spacing3    {setSpacing $text -spacing3 $tEdit::spacing3}
         ColorScheme {colorScheme $text $canvas $tEdit::colors}
-        TabKey      {toggleSoftTab $text}
+        TabKey      {toggleSoftTabs $text}
         default     {return 1}
       }
     }
@@ -1097,8 +1102,8 @@ proc createMenus {} {
       -variable tEdit::blockcursor -onvalue "true" -offvalue "false" \
       -command {tabOptions "BlockCursor"}
     .menu.options add separator
-    .menu.options add command -label "Set Font..." -underline 4 \
-      -command {setFont "[.nb select].text"}
+    .menu.options add command -label "Select Font..." -underline 7 \
+      -command {selectFont "[.nb select].text"}
     .menu.options add cascade -label "Line Spacing" -underline 0 \
       -menu [menu .menu.options.spacing]
       .menu.options.spacing add cascade -label "Space Above Lines" -underline 6 \
@@ -1146,7 +1151,7 @@ proc createMenus {} {
           -command {tabOptions "TabKey"}
       }
     .menu.options add checkbutton -label "Soft Tabs" -underline 0 \
-      -variable tEdit::tabs2spaces -onvalue "true" -offvalue "false" \
+      -variable tEdit::softtabs -onvalue "true" -offvalue "false" \
       -command {tabOptions "TabKey"}
   .menu add cascade -label "Help" -underline 0 -menu [menu .menu.help]
     .menu.help add command -label "System Details..." -underline 0 \
@@ -1352,7 +1357,7 @@ proc createBindings {} {
   bind all <F1>         {.menu.help invoke "About tEdit..."}
   # toggle menu "Set Font..." state
   bind all <<TkFontchooserVisibility>> {
-    .menu.options entryconfigure "Set Font..." \
+    .menu.options entryconfigure "Select Font..." \
       -state [expr {[tk fontchooser configure -visible] ? "disabled" : "normal"}]
   }
   # make Return and Keypad-Enter keys behave the same
@@ -1380,7 +1385,7 @@ proc createBindings {} {
 
   # mark list bindings
   foreach keysym [list <Return> <Double-ButtonRelease-1>] {
-    bind .marks $keysym {markSee [.marks get active]}
+    bind .marks $keysym {markSee [%W get active]}
   }
   bind .marks <Delete> {markDelete active}
 
