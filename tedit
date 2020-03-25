@@ -477,7 +477,7 @@ proc foldText {text} {
   set button_text "\u25b6\u25b6 [incr fold_sum] lines: $fold_text"
   set fold "${text}.fold${yfrom}-${yto}"
   tk::button $fold -text $button_text -relief flat -padx 0 -pady 0 \
-    -takefocus 0 -cursor "hand2" -font [$text cget -font] \
+    -takefocus 0 -cursor "hand2" -font $tEdit::textfont \
     -command [list unfoldText $text $fold $first $last]
   $text tag add $fold $first $last
   $text tag configure $fold -elide true
@@ -692,6 +692,10 @@ proc markDelete {which} {
 
 proc lineNumbers {text canvas args} {
   set checklist "configure delete insert see yview"
+  # canvas font don't need italics, underline or overstrike
+  #   family and size are enough
+  set font [lrange $tEdit::textfont 0 1]
+  # check only for items in checklist and elide tags
   if {[llength $args] == 0 || [lindex $args 0 1] in $checklist \
     || [lindex $args 0 4] eq "-elide"} {
     $canvas delete all
@@ -702,10 +706,10 @@ proc lineNumbers {text canvas args} {
       set height [lindex $dline 3]
       set y [expr {[lindex $dline 1] + $tEdit::spacing1}]
       set linenum [lindex [split $i .] 0]
-      set width [expr {[font measure [$text cget -font] $linenum] + 5}]
+      set width [expr {[font measure $tEdit::textfont $linenum] + 5}]
       $canvas configure -width $width
       $canvas create text 2 $y -anchor nw -text $linenum \
-        -font [$text cget -font] -fill [$text cget -foreground]
+        -font $font -fill [$text cget -foreground]
       set i [$text index "${i} +1 lines"]
     }
   }
@@ -753,14 +757,14 @@ proc toggleSoftTabs {text} {
 }
 
 proc configureTabSize {text} {
-  $text configure -tabs "[expr {$tEdit::tabsize * [font measure [$text cget -font] 0]}] left"
+  $text configure -tabs "[expr {$tEdit::tabsize * [font measure $tEdit::textfont 0]}] left"
 }
 
 proc setFont {font} {
   set tEdit::textfont $font
   foreach tab [.nb tabs] {
     set text "${tab}.text"
-    $text configure -font [font actual $font]
+    $text configure -font $font
     configureTabSize $text
     if {$tEdit::folds($text) ne ""} {
       foreach fold $tEdit::folds($text) {
@@ -1199,14 +1203,14 @@ proc createWidgets {} {
     ttk::frame .browser
       ttk::treeview .tree -takefocus 0 -selectmode browse \
         -columns {fullpath type} -displaycolumns "" \
-        -yscrollcommand {.treeyscroll set} -xscrollcommand {.treexscroll set}
+        -yscrollcommand {.ytree set} -xscrollcommand {.xtree set}
         .tree heading #0 -anchor center -text "File Browser"
-      ttk::scrollbar .treeyscroll -orient vertical   -command {.tree yview}
-      ttk::scrollbar .treexscroll -orient horizontal -command {.tree xview}
+      ttk::scrollbar .ytree -orient vertical   -command {.tree yview}
+      ttk::scrollbar .xtree -orient horizontal -command {.tree xview}
       # grid treeview and scrollbars in the left pane frame
-      grid .tree        -in .browser -row 0 -column 0 -sticky nswe
-      grid .treeyscroll -in .browser -row 0 -column 1 -sticky ns
-      grid .treexscroll -in .browser -row 1 -column 0 -sticky we
+      grid .tree  -in .browser -row 0 -column 0 -sticky nswe
+      grid .ytree -in .browser -row 0 -column 1 -sticky ns
+      grid .xtree -in .browser -row 1 -column 0 -sticky we
       grid rowconfigure    .browser .tree -weight 1
       grid columnconfigure .browser .tree -weight 1
 
@@ -1215,7 +1219,7 @@ proc createWidgets {} {
       ttk::notebook::enableTraversal .nb
       ttk::labelframe .fmarks -borderwidth 1 -relief flat -text "Marks:"
         tk::listbox .marks -takefocus 0 -highlightthickness 0 -width 10 \
-          -yscrollcommand {.ymarks set} -xscrollcommand {.xmarks set}
+          -xscrollcommand {.xmarks set} -yscrollcommand {.ymarks set}
         ttk::scrollbar .ymarks -orient vertical   -command {.marks yview}
         ttk::scrollbar .xmarks -orient horizontal -command {.marks xview}
         # grid listbox and scrollbars in the labelframe
@@ -1371,7 +1375,7 @@ proc createBindings {} {
 
   # notebook bindings
   # on tab change reload user settings (except font and line numbering)
-  bind .nb <<NotebookTabChanged>> {focusTab [.nb select]}
+  bind .nb <<NotebookTabChanged>> {focusTab [%W select]}
   # popup menu on tab labels
   bind .nb <ButtonPress-3> {tabsMenu %W %x %y %X %Y}
   # mouse wheel rotate tabs
@@ -1416,11 +1420,11 @@ wm protocol . WM_DELETE_WINDOW {.menu.file invoke "Close All"}
 # COMMAND LINE
 #
 if {$::argc > 0} {
-  foreach filename $::argv {
-    if {[file exists $filename]} {
-      openFile $filename
+  foreach arg $::argv {
+    if {[file exists $arg]} {
+      openFile $arg
     } else {
-      newTab "" $filename
+      newTab "" $arg
     }
   }
   if {[llength [.nb tabs]] == 0} {exit 1}
