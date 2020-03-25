@@ -11,10 +11,13 @@ namespace eval tEdit {
   array set marks      {}
   array set marknum    {}
 
+  variable filepath    {}
+  variable message     {}
+  variable modified    {}
   variable tabnum      0
   variable untitlednum 1
-  variable message     {}
   variable savename    {}
+  variable recent      [list]
   variable filetypes   {{{All Files} {*}}
     {{Text Files} {*.txt *.TXT}} {{Log Files} {*.log *.LOG}}
     {{C Files} {*.c *.C}} {{C++ Files} {*.cpp *.CPP}} {{Header Files} {*.h *.H}}
@@ -25,42 +28,35 @@ namespace eval tEdit {
     {{Rust Files} {*.rs *.RS}}
     {{Tcl Files} {*.tcl *.TCL}}
   }
-  variable textfont    {TkFixedFont}
-  variable browser     {false}
-  variable recent      [list]
-  variable filepath    {}
-  variable modified    {}
-  variable wrap        {none}
-  variable showmenu    {.menu}
-  variable blinkcursor 300
-  variable blockcursor {false}
-  variable showmarks   {false}
-  variable showstatus  {true}
-  variable linenumbers {true}
-  variable showyscroll {true}
-  variable showxscroll {true}
-  variable autoindent  {true}
-  variable tabsize     2
-  variable softtabs    {true}
-  variable spacing1    0
-  variable spacing2    0
-  variable spacing3    0
-  variable blockselect [list]
-
-  variable theme       [ttk::style theme use]
-  variable colors      {default}
-
   variable search      {}
   variable hsearch     [list]
-  variable matchcase   {false}
   variable regexp      {-exact}
   variable replace     {}
   variable hreplace    [list]
   variable showsearch  {}
   variable showreplace {false}
-
+  variable showmarks   {false}
+  variable browser     {false}
+  variable linenumbers {true}
+  variable showmenu    {.menu}
+  variable showstatus  {true}
+  variable showyscroll {true}
+  variable showxscroll {true}
+  variable autoindent  {true}
+  variable wrap        {none}
+  variable blinkcursor 300
+  variable blockcursor {false}
+  variable textfont    {TkFixedFont}
+  variable spacing1    0
+  variable spacing2    0
+  variable spacing3    0
+  variable colors      {default}
+  variable theme       [ttk::style theme use]
+  variable tabsize     2
+  variable softtabs    {true}
   variable dndstart    {}
   variable aftercmd    {}
+  variable blockselect [list]
 }
 
 ################################################################################
@@ -447,8 +443,8 @@ proc calculateExpr {text} {
     set first [$text index sel.first]
     set last [$text index sel.last]
   }
-  set str [$text get $first $last]
-  if {![catch {set result [expr [string map {/ *1.0/} $str]]}]} {
+  set math [$text get $first $last]
+  if {![catch {set result [expr [string map {/ *1.0/} $math]]}]} {
     $text insert insert $result
   }
 }
@@ -463,7 +459,7 @@ proc foldText {text} {
     return 1
   }
   scan $selected {%d.%d %d.%d} yfrom xfrom yto xto
-  # check if any folds exist in current selection
+  # check if any older folds exist in current selection
   foreach old_fold $tEdit::folds($text) {
     scan [$text tag ranges $old_fold] {%d.%d %d.%d} old_yfrom old_xfrom old_yto old_xto
     if {$yfrom <= $old_yfrom && $yto >= $old_yto} {
@@ -472,7 +468,7 @@ proc foldText {text} {
   }
   set first "${yfrom}.0"
   set last "${yto}.end"
-  # get first line text to show in fold button
+  # get first line to show in fold button text
   set fold_text [$text get $first "${yfrom}.end"]
   set button_text "\u25b6\u25b6 [incr fold_sum] lines: $fold_text"
   set fold "${text}.fold${yfrom}-${yto}"
@@ -539,10 +535,15 @@ proc searchAll {what} {
   }
   set text "[.nb select].text"
   clearHighlight "tag_search tag_search_all"
-  set search_cmd [list $text search $tEdit::regexp -all -count n -- $what 0.0 end]
-  if {$tEdit::matchcase eq "false"} {
-    set search_cmd [linsert $search_cmd 2 -nocase]
+  # search only in selection if exists
+  if {[$text tag ranges sel] ne ""} {
+    set first "sel.first"
+    set last "sel.last"
+  } else {
+    set first "0.0"
+    set last "end"
   }
+  set search_cmd [list $text search $tEdit::regexp -all -count length -- $what $first $last]
   if {[catch {set taglist [{*}$search_cmd]} msg]} {
     .cbsearch configure -style error.TCombobox
     showMessage [lindex [split $msg :] 1]
@@ -552,9 +553,10 @@ proc searchAll {what} {
     showMessage "no matches found"
     return 1
   } else {
+    .cbsearch configure -style valid.TCombobox
     set count 0
     foreach first $taglist {
-      set last "$first +[lindex $n $count] indices"
+      set last "$first +[lindex $length $count] indices"
       $text tag add tag_search_all $first $last
       incr count
     }
@@ -693,7 +695,7 @@ proc markDelete {which} {
 proc lineNumbers {text canvas args} {
   set checklist "configure delete insert see yview"
   # canvas font don't need italics, underline or overstrike
-  #   family and size are enough
+  # family and size are enough
   set font [lrange $tEdit::textfont 0 1]
   # check only for items in checklist and elide tags
   if {[llength $args] == 0 || [lindex $args 0 1] in $checklist \
@@ -1246,23 +1248,24 @@ proc createWidgets {} {
       ttk::button .bfindprev -text "Find Prev" -width 9 \
         -underline 5 -takefocus 0 \
         -command {.menu.search invoke "Find Prev"}
-      ttk::checkbutton .ckmatchcase -text "Match Case" \
-        -underline 0 -takefocus 0 \
-        -variable tEdit::matchcase -onvalue "true" -offvalue "false"
-      ttk::checkbutton .ckregexp -text "Regular Expression" \
-        -underline 8 -takefocus 0 \
-        -variable tEdit::regexp -onvalue "-regexp" -offvalue "-exact"
+      ttk::radiobutton .rbnocase -text "Ignore Case" \
+        -underline 7 -takefocus 0 -variable tEdit::regexp -value "-nocase"
+      ttk::radiobutton .rbexact -text "Exact" \
+        -underline 1 -takefocus 0 -variable tEdit::regexp -value "-exact"
+      ttk::radiobutton .rbregexp -text "Regular Expression" \
+        -underline 8 -takefocus 0 -variable tEdit::regexp -value "-regexp"
       ttk::checkbutton .ckreplace -text "Replace" \
         -underline 0 -takefocus 0 \
         -variable tEdit::showreplace -onvalue "true" -offvalue "false" \
         -command {toggleView .lfreplace $tEdit::showreplace}
       # grid them in the search labelframe
-      grid .cbsearch    -in .lfsearch -row 0 -column 0 -sticky we
-      grid .bfindnext   -in .lfsearch -row 0 -column 1 -sticky w
-      grid .bfindprev   -in .lfsearch -row 0 -column 2 -sticky w
-      grid .ckregexp    -in .lfsearch -row 1 -column 0 -sticky w
-      grid .ckmatchcase -in .lfsearch -row 1 -column 1 -sticky w -columnspan 2
-      grid .ckreplace   -in .lfsearch -row 1 -column 3 -sticky e
+      grid .cbsearch  -in .lfsearch -row 0 -column 0 -sticky we
+      grid .bfindnext -in .lfsearch -row 0 -column 1 -sticky w
+      grid .bfindprev -in .lfsearch -row 0 -column 2 -sticky w
+      grid .rbregexp  -in .lfsearch -row 1 -column 0 -sticky w
+      grid .rbexact   -in .lfsearch -row 1 -column 1 -sticky w
+      grid .rbnocase  -in .lfsearch -row 1 -column 2 -sticky w
+      grid .ckreplace -in .lfsearch -row 1 -column 3 -sticky e
       grid columnconfigure .lfsearch .ckreplace -weight 1
 
     ttk::labelframe .lfreplace -borderwidth 1 -relief flat -text "Replace with:"
