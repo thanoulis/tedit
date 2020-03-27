@@ -474,7 +474,7 @@ proc foldText {text} {
   set fold "${text}.fold${yfrom}-${yto}"
   tk::button $fold -text $button_text -relief flat -padx 0 -pady 0 \
     -takefocus 0 -cursor "hand2" -font $tEdit::textfont \
-    -command [list unfoldText $text $fold $first $last]
+    -command [list unfoldText $text $fold]
   $text tag add $fold $first $last
   $text tag configure $fold -elide true
   $text window create $first -window $fold
@@ -484,21 +484,21 @@ proc foldText {text} {
   .menu.edit entryconfigure "Unfold All" -state normal
 }
 
-proc unfoldText {text which {first ""} {last ""}} {
-  switch -- $which {
+proc unfoldText {text fold} {
+  switch -- $fold {
     all {
       foreach fold $tEdit::folds($text) {
         $text tag configure $fold -elide false
-        $text tag remove $fold "$fold.first" "$fold.last"
+        $text tag delete $fold
         destroy $fold
       }
       set tEdit::folds($text) [list]
     }
     default {
-      $text tag configure $which -elide false
-      $text tag remove $which $first $last
-      destroy $which
-      set tEdit::folds($text) [lsearch -inline -all -not -exact $tEdit::folds($text) $which]
+      $text tag configure $fold -elide false
+      $text tag delete $fold
+      destroy $fold
+      set tEdit::folds($text) [lsearch -inline -all -not -exact $tEdit::folds($text) $fold]
     }
   }
   if {[llength $tEdit::folds($text)] == 0} {
