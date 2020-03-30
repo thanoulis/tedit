@@ -107,8 +107,7 @@ proc newTab {{position ""} {filename ""}} {
       -tabstyle wordprocessor -tabs $tEdit::tabsize \
       -blockcursor $tEdit::blockcursor -insertofftime $tEdit::blinkcursor \
       -spacing1 $tEdit::spacing1 -spacing2 $tEdit::spacing2 -spacing3 $tEdit::spacing3 \
-      -xscrollcommand [list $tab(xscroll) set] \
-      -yscrollcommand [list $tab(yscroll) set]
+      -xscrollcommand [list $tab(xscroll) set] -yscrollcommand [list $tab(yscroll) set]
       # text tags management and starting colors
       $tab(text) tag configure tag_search     -foreground "#FFFF00" -background "#000000"
       $tab(text) tag configure tag_search_all -foreground "#000000" -background "#FFFF00"
@@ -154,9 +153,8 @@ proc newTab {{position ""} {filename ""}} {
   } else {
     set filename [file tail $filename]
   }
-  if {$position eq ""} {
-    set position end
-  } elseif {[expr {$position + 1}] >= [$nb index end]} {
+  # where to insert new tab
+  if {$position eq "" || [expr {$position + 1}] >= [$nb index end]} {
     set position end
   } else {
     incr position
@@ -196,8 +194,8 @@ proc openFile {filename} {
   }
   if {[file type $filename] ne "file"} {
     puts stderr "Cannot open: $filename is [file type $filename]"
-    tk_messageBox -title "Cannot open file!" -icon error -type ok -parent . \
-      -message "Cannot open file:" \
+    tk_messageBox -title "Cannot open file!" -icon error -type ok \
+      -parent . -message "Cannot open file:" \
       -detail "$filename\nis a [file type $filename]."
     return 1
   }
@@ -230,14 +228,14 @@ proc saveFileDialog {} {
   if {[file exists $filename]} {
     if {[file type $filename] ne "file"} {
       puts stderr "Cannot save: $filename is [file type $filename]"
-      tk_messageBox -title "Cannot save file!" -icon error -type ok -parent . \
-        -message "Cannot save [file tail $filename]:" \
+      tk_messageBox -title "Cannot save file!" -icon error -type ok \
+        -parent . -message "Cannot save [file tail $filename]:" \
         -detail "$filename\nis a [file type $filename]."
       return 1
     } elseif {[file writable $filename] == 0} {
       puts stderr "Cannot save: $filename is read only"
-      tk_messageBox -title "Cannot save file!" -icon error -type ok -parent . \
-        -message "Cannot save [file tail $filename]:" \
+      tk_messageBox -title "Cannot save file!" -icon error -type ok \
+        -parent . -message "Cannot save [file tail $filename]:" \
         -detail "$filename\nis read only."
       return 1
     } else {
@@ -337,7 +335,8 @@ proc populateBrowser {node {tree ".tree"}} {
   }
   foreach f [lsort -dictionary [glob -nocomplain -directory $path *]] {
     set type [file type $f]
-    set id [$tree insert $node end -text [file tail $f] -values [list $f $type]]
+    set id [$tree insert $node end -text [file tail $f] \
+      -values [list $f $type]]
     if {$type eq "directory"} {
       $tree insert $id 0
       $tree item $id -text [file tail $f]/
@@ -347,7 +346,8 @@ proc populateBrowser {node {tree ".tree"}} {
 
 proc startBrowser {{tree ".tree"}} {
   foreach dir [lsort -dictionary [file volumes]] {
-    populateBrowser [$tree insert {} end -text $dir -values [list $dir directory]] $tree
+    populateBrowser [$tree insert {} end -text $dir \
+      -values [list $dir directory]] $tree
   }
 }
 
@@ -416,7 +416,7 @@ proc deleteSelection {text key} {
 proc autoIndent {text} {
   if {$tEdit::autoindent eq "true"} {
     bind $text <Return> {
-      # find the whitespace at the start of the current line
+      # find any whitespace at the start of the current line
       set first [%W index "insert linestart"]
       set last [%W index "insert lineend"]
       regexp {^([ \t]*)} [%W get $first $last] -> whitespace
@@ -498,7 +498,8 @@ proc unfoldText {text fold} {
       $text tag configure $fold -elide false
       $text tag delete $fold
       destroy $fold
-      set tEdit::folds($text) [lsearch -inline -all -not -exact $tEdit::folds($text) $fold]
+      set tEdit::folds($text) \
+        [lsearch -inline -all -not -exact $tEdit::folds($text) $fold]
     }
   }
   if {[llength $tEdit::folds($text)] == 0} {
@@ -570,19 +571,16 @@ proc replaceOne {what with} {
   if {$with ni $tEdit::hreplace} {
     lappend tEdit::hreplace $with
   }
-  set taglist [$text tag ranges tag_search]
-  if {$taglist eq ""} {
+  if {[set taglist [$text tag ranges tag_search]] eq ""} {
     searchOne $what
   }
-  set taglist [$text tag ranges tag_search]
-  if {$taglist eq ""} {
+  if {[set taglist [$text tag ranges tag_search]] eq ""} {
     showMessage "nothing to replace"
     return 1
-  } else {
-    $text edit separator
-    $text replace {*}$taglist $with
-    searchOne $what
   }
+  $text edit separator
+  $text replace {*}$taglist $with
+  searchOne $what
 }
 
 proc replaceAll {what with} {
@@ -782,10 +780,6 @@ proc selectFont {text} {
   tk fontchooser show
 }
 
-proc setSpacing {text type spacing} {
-  $text configure $type $spacing
-}
-
 proc colorScheme {text canvas colorscheme} {
   switch -- $colorscheme {
     amber      {array set color {fg "#FFBF00" bg "#000000" hl "#0000FF"}}
@@ -856,9 +850,9 @@ proc tabOptions {arg {tab ""}} {
         WordWrap    {$text configure -wrap $tEdit::wrap}
         BlinkCursor {$text configure -insertofftime $tEdit::blinkcursor}
         BlockCursor {$text configure -blockcursor $tEdit::blockcursor}
-        Spacing1    {setSpacing $text -spacing1 $tEdit::spacing1}
-        Spacing2    {setSpacing $text -spacing2 $tEdit::spacing2}
-        Spacing3    {setSpacing $text -spacing3 $tEdit::spacing3}
+        Spacing1    {$text configure -spacing1 $tEdit::spacing1}
+        Spacing2    {$text configure -spacing2 $tEdit::spacing2}
+        Spacing3    {$text configure -spacing3 $tEdit::spacing3}
         ColorScheme {colorScheme $text $canvas $tEdit::colors}
         TabKey      {toggleSoftTabs $text}
         default     {return 1}
@@ -901,15 +895,13 @@ proc tabsMenu {W x y X Y} {
 
 proc nextTab {{nb ".nb"}} {
   set tabid [$nb index current]
-  incr tabid
-  if {$tabid >= [$nb index end]} {set tabid 0}
+  if {[incr tabid] >= [$nb index end]} {set tabid 0}
   $nb select $tabid
 }
 
 proc prevTab {{nb ".nb"}} {
   set tabid [$nb index current]
-  incr tabid -1
-  if {$tabid < 0} {set tabid [expr {[$nb index end] - 1}]}
+  if {[incr tabid -1] < 0} {set tabid [expr {[$nb index end] - 1}]}
   $nb select $tabid
 }
 
