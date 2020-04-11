@@ -77,7 +77,7 @@ proc recentAdd {filename} {
 }
 
 proc setModified {text} {
-  set tEdit::modified [expr {[$text edit modified] ? {[Modified]} : ""}]
+  set tEdit::modified [expr {[$text edit modified] ? "Modified" : ""}]
 }
 
 proc newTab {{position ""} {filename ""}} {
@@ -268,7 +268,7 @@ proc saveFile {filename text} {
   $text edit modified 0
   storeFilename $filename
   recentAdd $filename
-  showMessage "$filename saved"
+  showMessage "[file tail $filename] saved"
   set tEdit::filepath [file nativename $filename]
   return 0
 }
