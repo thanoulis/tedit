@@ -1312,7 +1312,7 @@ proc createWidgets {} {
 proc createBindings {} {
   # deactivate some predefined bindings from Text widget
   set bindings [list <Tab> <Control-Tab> <Control-Shift-Tab> <Control-a> \
-    <Control-e> <Control-w> <Control-y> <Control-o> <Control-z> <Control-Z>\
+    <Control-e> <Control-w> <Control-y> <Control-o> <Control-z> <Control-Z> \
   ]
   foreach keysym $bindings {
     bind Text $keysym {return 0}
@@ -1320,6 +1320,8 @@ proc createBindings {} {
   # text widget bindings
   bind Text <<Modified>>  {setModified %W}
   bind Text <<UndoStack>> {undoStack %W}
+  bind Text <Control-z>   {.menu.edit invoke "Undo"}
+  bind Text <Control-Z>   {.menu.edit invoke "Redo"}
   bind Text <Control-x>   {.menu.edit invoke "Cut"}
   bind Text <Control-c>   {.menu.edit invoke "Copy"}
   bind Text <Control-v>   {.menu.edit invoke "Paste"}
@@ -1346,8 +1348,6 @@ proc createBindings {} {
   bind all <Control-S>  {.menu.file invoke "Save As..."}
   bind all <Control-q>  {.menu.file invoke "Close All"}
   bind all <Control-Q>  {.menu.file invoke "Exit"}
-  bind all <Control-z>  {.menu.edit invoke "Undo"}
-  bind all <Control-Z>  {.menu.edit invoke "Redo"}
   bind all <Control-f>  {.menu.search invoke "Show Search"}
   bind all <F3>         {.menu.search invoke "Find Next"}
   bind all <Shift-F3>   {.menu.search invoke "Find Prev"}
