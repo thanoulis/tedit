@@ -204,9 +204,10 @@ proc openFile {filename} {
     showMessage [lindex [split $msg :] 1]
     return 1
   }
+  chan configure $data -translation auto
   set text [newTab [.nb index current] $filename]
-  $text insert 0.0 [read -nonewline $data]
-  close $data
+  $text insert end [chan read -nonewline $data]
+  chan close $data
   $text mark set insert 0.0
   $text see insert
   $text edit modified 0
@@ -261,8 +262,9 @@ proc saveFile {filename text} {
     showMessage [lindex [split $msg :] 1]
     return 1
   }
-  puts -nonewline $data [$text get 0.0 end]
-  close $data
+  chan puts -nonewline $data [$text get 0.0 end]
+  chan flush $data
+  chan close $data
   $text edit modified 0
   storeFilename $filename
   recentAdd $filename
@@ -696,6 +698,7 @@ proc lineNumbers {text canvas args} {
   # family and size are enough
   set font [lrange $tEdit::textfont 0 1]
   # check only for items in checklist and elide tags
+  # $args == 0 when opening a file
   if {[llength $args] == 0 || [lindex $args 0 1] in $checklist \
     || [lindex $args 0 4] eq "-elide"} {
     $canvas delete all
@@ -816,11 +819,11 @@ proc base64Encode {} {
     showMessage [lindex [split $msg :] 1]
     return 1
   }
-  fconfigure $data -translation binary
-  set encoded [binary encode base64 -maxlen 75 [read -nonewline $data]]
-  close $data
+  chan configure $data -translation binary
+  set encoded [binary encode base64 -maxlen 75 [chan read -nonewline $data]]
+  chan close $data
   set text [newTab [.nb index current] "${filename}.b64"]
-  $text insert 0.0 $encoded
+  $text insert end $encoded
   $text mark set insert 0.0
   $text see insert
   $text edit modified 0
