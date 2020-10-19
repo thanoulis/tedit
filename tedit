@@ -55,9 +55,12 @@ namespace eval tEdit {
   variable theme       [ttk::style theme use]
   variable tabsize     2
   variable softtabs    {true}
-  variable dndstart    {}
-  variable aftercmd    {}
   variable blockselect [list]
+}
+
+namespace eval DnD {
+  variable timer {}
+  variable start {}
 }
 
 ################################################################################
@@ -910,15 +913,15 @@ proc prevTab {{nb ".nb"}} {
 }
 
 proc dragDelay {W x y X Y} {
-  set tEdit::aftercmd [list dragTab $W $x $y $X $Y]
-  after 200 $tEdit::aftercmd
+  set DnD::timer [list dragTab $W $x $y $X $Y]
+  after 200 $DnD::timer
 }
 
 proc dragTab {W x y X Y} {
-  set tEdit::aftercmd ""
-  set tEdit::dndstart [$W index @$x,$y]
+  set DnD::timer ""
+  set DnD::start [$W index @$x,$y]
   # check for a valid start
-  if {[string is integer -strict $tEdit::dndstart]} {
+  if {[string is integer -strict $DnD::start]} {
     # create window to show when drag
     set tabid [lindex [$W tabs] [$W index @$x,$y]]
     set tabtext [$W tab $tabid -text]
@@ -936,12 +939,12 @@ proc dragTab {W x y X Y} {
 
 proc dropTab {W x y} {
   focus [.nb select].text
-  if {$tEdit::aftercmd ne ""} {
-    after cancel $tEdit::aftercmd
+  if {$DnD::timer ne ""} {
+    after cancel $DnD::timer
     return 0
   }
   $W configure -cursor "left_ptr"
-  set from $tEdit::dndstart
+  set from $DnD::start
   # check for a valid source
   if {[string is integer -strict $from]} {
     set to [$W index @$x,$y]
@@ -951,7 +954,7 @@ proc dropTab {W x y} {
       $W insert $to $tab
     }
   }
-  set tEdit::dndstart ""
+  set DnD::start ""
   bind $W <Motion> {return 0}
   destroy .dnd
 }
@@ -963,6 +966,15 @@ proc moveTab {W x y X Y} {
     if {[string is integer -strict $to]} {
       wm geometry .dnd "+${X}+${Y}"
     }
+  }
+}
+
+proc cancelDnD {W} {
+  if {[winfo exists .dnd]} {
+    $W configure -cursor "left_ptr"
+    set DnD::start ""
+    bind $W <Motion> {return 0}
+    destroy .dnd
   }
 }
 
@@ -1342,6 +1354,9 @@ proc createBindings {} {
   bind Text <BackSpace> {deleteSelection %W "Backspace"}
 
   # global window bindings
+  foreach keysym {<Escape> <ButtonRelease-1>} {
+    bind all $keysym {cancelDnD .tree}
+  }
   bind all <Control-n>  {.menu.file invoke "New Tab"}
   bind all <Control-F4> {.menu.file invoke "Close Tab"}
   bind all <Control-o>  {.menu.file invoke "Open..."}
@@ -1376,7 +1391,7 @@ proc createBindings {} {
   # on tab change reload user settings (except font and line numbering)
   bind .nb <<NotebookTabChanged>> {focusTab [%W select]}
   # popup menu on tab labels
-  bind .nb <ButtonPress-3> {tabsMenu %W %x %y %X %Y}
+  bind .nb <ButtonPress-3> {cancelDnD %W;tabsMenu %W %x %y %X %Y}
   # mouse wheel rotate tabs
   bind .nb <4> {nextTab}
   bind .nb <5> {prevTab}
