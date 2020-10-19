@@ -11,6 +11,7 @@ namespace eval tEdit {
   array set marks      {}
   array set marknum    {}
 
+  variable safe        [interp create -safe]
   variable filepath    {}
   variable message     {}
   variable modified    {}
@@ -446,7 +447,7 @@ proc calculateExpr {text} {
     set last [$text index sel.last]
   }
   set math [$text get $first $last]
-  if {![catch {set result [expr [string map {/ *1.0/} $math]]}]} {
+  if {![catch {set result [$tEdit::safe eval "expr [string map {/ *1.0/} $math]"]}]} {
     $text insert insert $result
   }
 }
