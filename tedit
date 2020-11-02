@@ -798,7 +798,7 @@ proc colorScheme {text canvas colorscheme} {
     gray       {array set color {fg "#D6D6D6" bg "#4E4E4E" hl "#0000FF"}}
     green      {array set color {fg "#00FF00" bg "#000000" hl "#0000FF"}}
     salmon     {array set color {fg "#222200" bg "#CA607B" hl "#DED494"}}
-    sugar      {array set color {fg "#000000" bg "#EEEEEE" hl "#FFFF00"}}
+    sugar      {array set color {fg "#000000" bg "#EEEFDF" hl "#BEBFB2"}}
     default    {array set color {fg "#000000" bg "#FFFFFF" hl "#FFFF00"}}
   }
   $canvas configure -background $color(hl)
