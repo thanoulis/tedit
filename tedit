@@ -480,6 +480,8 @@ proc foldText {text} {
   set fold "${text}.fold${yfrom}-${yto}"
   tk::button $fold -text $button_text -relief flat -padx 0 -pady 0 \
     -takefocus 0 -cursor "hand2" -font $tEdit::textfont \
+    -background [$text cget -background] \
+    -foreground [$text cget -foreground] \
     -command [list unfoldText $text $fold]
   $text tag add $fold $first $last
   $text tag configure $fold -elide true
@@ -805,6 +807,12 @@ proc colorScheme {text canvas colorscheme} {
   $text configure -insertbackground $color(fg)
   $text tag configure tag_search -foreground $color(hl) -background $color(fg)
   $text tag configure tag_search_all -foreground $color(fg) -background $color(hl)
+  if {$tEdit::folds($text) ne ""} {
+    foreach fold $tEdit::folds($text) {
+      $fold configure -background $color(bg)
+      $fold configure -foreground $color(fg)
+    }
+  }
 }
 
 proc base64Encode {} {
