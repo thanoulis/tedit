@@ -226,7 +226,7 @@ proc getPipedData {} {
   }
   set data [string trimright $data "\n"]
   chan event stdin readable {}
-  set text [newTab "" "<<STDIN>>"]
+  set text [newTab {} "<<STDIN>>"]
   $text insert end $data
 }
 
@@ -1457,7 +1457,7 @@ if {$::argc > 0} {
     if {[file exists $arg]} {
       openFile $arg
     } else {
-      newTab "" $arg
+      newTab {} $arg
     }
   }
   if {[llength [.nb tabs]] == 0} {exit 1}
