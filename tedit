@@ -945,7 +945,8 @@ proc dragTab {W x y X Y} {
     set tabid [lindex [$W tabs] [$W index @$x,$y]]
     set tabtext [$W tab $tabid -text]
     toplevel .dnd
-    tk::label .dnd.tabname -relief raised -padx 5 -pady 5 -text $tabtext
+    tk::label .dnd.tabname -relief raised -padx 5 -pady 5 \
+      -background "white" -text $tabtext
     pack .dnd.tabname -in .dnd -expand true -fill both
     wm resizable .dnd 0 0
     wm geometry .dnd "+${X}+${Y}"
