@@ -219,6 +219,17 @@ proc openFile {filename} {
   recentAdd $filename
 }
 
+proc getPipedData {} {
+  set data ""
+  while {[gets stdin line] >= 0} {
+    append data $line "\n"
+  }
+  set data [string trimright $data "\n"]
+  chan event stdin readable {}
+  set text [newTab "" "<<STDIN>>"]
+  $text insert end $data
+}
+
 proc storeFilename {filename} {
   set tab [.nb select]
   set tEdit::filename($tab) $filename
@@ -1453,3 +1464,5 @@ if {$::argc > 0} {
 } else {
   newTab
 }
+# get input from OS pipe (stdout)
+chan event stdin readable {getPipedData}
