@@ -224,10 +224,12 @@ proc getPipedData {} {
   while {[gets stdin line] >= 0} {
     append data $line "\n"
   }
-  set data [string trimright $data "\n"]
   chan event stdin readable {}
-  set text [newTab {} "<<STDIN>>"]
-  $text insert end $data
+  set data [string trimright $data "\n"]
+  if {[llength $data] > 0} {
+    set text [newTab {} "<<STDIN>>"]
+    $text insert end $data
+  }
 }
 
 proc storeFilename {filename} {
