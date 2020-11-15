@@ -56,6 +56,7 @@ namespace eval tEdit {
   variable tabsize     2
   variable softtabs    {true}
   variable blockselect [list]
+  variable blockpaste  0
 }
 
 namespace eval DnD {
@@ -387,22 +388,61 @@ proc toggleBrowser {show} {
   }
 }
 
-proc textCutCopy {text action} {
+proc textCopyCut {text action} {
   if {[set selected [$text tag ranges sel]] eq ""} {return 1}
   if {[llength $selected] > 2} {
+    set prev [lindex $selected 0]
     foreach {first last} $selected {
+      set lines [expr {$first - $prev}]
+      if {$lines >= 2} {
+        set length [string length [$text get $first $last]]
+        for {set i 1} {$i < $lines} {incr i} {
+          append data [string repeat " " $length] "\n"
+        }
+      }
       append data [$text get $first $last] "\n"
       if {$action eq "Cut"} {$text delete $first $last}
+      set prev $first
     }
     set data [string trimright $data "\n"]
     clipboard clear
     clipboard append -type STRING -- $data
+    set tEdit::blockpaste 1
   } else {
-    if {$action eq "Copy"} {
-      tk_textCopy $text
-    } else {
+    if {$action eq "Cut"} {
       tk_textCut $text
+    } else {
+      tk_textCopy $text
     }
+    set tEdit::blockpaste 0
+  }
+}
+
+proc textPaste {text} {
+  if {$tEdit::blockpaste == 1} {
+    set data [split [clipboard get -type UTF8_STRING] "\n"]
+    set cursor [$text index insert]
+    set cursory [lindex [split $cursor "."] end]
+    set lastline [$text index end]
+    set i 0
+    foreach block $data {
+      set line [expr {$cursor + $i}]
+      if {$line >= $lastline} {
+        $text insert end "\n"
+        $text see "$cursor +$i lines"
+      }
+      set eol [$text index "$line lineend"]
+      set eoly [lindex [split $eol "."] end]
+      set missing [expr {$cursory - $eoly}]
+      if {$missing > 0} {
+        $text insert $eol [string repeat " " $missing]
+      }
+      $text insert "$cursor +$i lines" $block
+      incr i
+    }
+  } else {
+    tk_textPaste $text
+    $text see insert
   }
 }
 
@@ -1062,11 +1102,11 @@ proc createMenus {} {
       -accelerator "Ctrl+Shift+Z" -command {undoRedo "redo" [.nb select].text}
     .menu.edit add separator
     .menu.edit add command -label "Cut" -underline 2 \
-      -accelerator "Ctrl+X" -command {textCutCopy [.nb select].text "Cut"}
+      -accelerator "Ctrl+X" -command {textCopyCut [.nb select].text "Cut"}
     .menu.edit add command -label "Copy" -underline 0 \
-      -accelerator "Ctrl+C" -command {textCutCopy [.nb select].text "Copy"}
+      -accelerator "Ctrl+C" -command {textCopyCut [.nb select].text "Copy"}
     .menu.edit add command -label "Paste" -underline 0 \
-      -accelerator "Ctrl+V" -command {tk_textPaste [.nb select].text}
+      -accelerator "Ctrl+V" -command {textPaste [.nb select].text}
     .menu.edit add separator
     .menu.edit add command -label "Select All" -underline 7 \
       -accelerator "Ctrl+A" -command {selectAll [.nb select].text}
