@@ -420,7 +420,8 @@ proc textCopyCut {text action} {
 
 proc textPaste {text} {
   if {$tEdit::blockpaste == 1} {
-    set data [split [clipboard get -type UTF8_STRING] "\n"]
+    set type [expr {[tk windowingsystem] eq "x11" ? "UTF8_STRING" : "STRING"}]
+    set data [split [clipboard get -type $type] "\n"]
     set cursor [$text index insert]
     set cursory [lindex [split $cursor "."] end]
     set lastline [$text index end]
