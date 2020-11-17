@@ -622,7 +622,7 @@ proc searchAll {what} {
     .cbsearch configure -style valid.TCombobox
     set count 0
     foreach first $taglist {
-      set last "${first} +[lindex $length $count] indices"
+      set last "$first +[lindex $length $count] indices"
       $text tag add tag_search_all $first $last
       incr count
     }
