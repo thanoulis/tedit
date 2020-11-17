@@ -201,12 +201,12 @@ proc openFile {filename} {
     puts stderr "Cannot open: $filename is [file type $filename]"
     tk_messageBox -title "Cannot open file!" -icon error -type ok \
       -parent . -message "Cannot open file:" \
-      -detail "$filename\nis a [file type $filename]."
+      -detail "${filename}\nis a [file type $filename]."
     return 1
   }
   if {[catch {set data [open $filename r]} msg]} {
     puts stderr $msg
-    showMessage [lindex [split $msg :] 1]
+    showMessage [lindex [split $msg ":"] 1]
     return 1
   }
   chan configure $data -translation auto
@@ -255,7 +255,7 @@ proc saveFileDialog {} {
       puts stderr "Cannot save: $filename is read only"
       tk_messageBox -title "Cannot save file!" -icon error -type ok \
         -parent . -message "Cannot save [file tail $filename]:" \
-        -detail "$filename\nis read only."
+        -detail "${filename}\nis read only."
       return 1
     } else {
       set tEdit::savename $filename
@@ -277,7 +277,7 @@ proc saveFile {filename text} {
   }
   if {[catch {set data [open $filename w]} msg]} {
     puts stderr $msg
-    showMessage [lindex [split $msg :] 1]
+    showMessage [lindex [split $msg ":"] 1]
     return 1
   }
   chan puts -nonewline $data [$text get 0.0 end]
@@ -350,7 +350,7 @@ proc populateBrowser {node {tree ".tree"}} {
   set path [$tree set $node fullpath]
   $tree delete [$tree children $node]
   if {[catch {glob -nocomplain -directory $path *} msg]} {
-    showMessage [lindex [split $msg :] 1]
+    showMessage [lindex [split $msg ":"] 1]
     return 1
   }
   foreach f [lsort -dictionary [glob -nocomplain -directory $path *]] {
@@ -423,22 +423,22 @@ proc textPaste {text} {
     set type [expr {[tk windowingsystem] eq "x11" ? "UTF8_STRING" : "STRING"}]
     set data [split [clipboard get -type $type] "\n"]
     set cursor [$text index insert]
-    set cursory [lindex [split $cursor "."] end]
+    set ycursor [lindex [split $cursor "."] end]
     set lastline [$text index end]
     set i 0
     foreach block $data {
       set line [expr {$cursor + $i}]
       if {$line >= $lastline} {
         $text insert end "\n"
-        $text see "$cursor +$i lines"
+        $text see "$cursor +${i} lines"
       }
       set eol [$text index "$line lineend"]
-      set eoly [lindex [split $eol "."] end]
-      set missing [expr {$cursory - $eoly}]
+      set yeol [lindex [split $eol "."] end]
+      set missing [expr {$ycursor - $yeol}]
       if {$missing > 0} {
         $text insert $eol [string repeat " " $missing]
       }
-      $text insert "$cursor +$i lines" $block
+      $text insert "$cursor +${i} lines" $block
       incr i
     }
   } else {
@@ -481,7 +481,7 @@ proc autoIndent {text} {
       set last [%W index "insert lineend"]
       regexp {^([ \t]*)} [%W get $first $last] -> whitespace
       # create a newline, insert whitespace
-      %W insert insert "\n$whitespace"
+      %W insert insert "\n${whitespace}"
       # if necessary, scroll the view so cursor is visible
       %W see insert
       break
@@ -540,7 +540,7 @@ proc foldText {text} {
   $text tag add $fold $first $last
   $text tag configure $fold -elide true
   $text window create $first -window $fold
-  $text mark set insert "${last} +1 lines"
+  $text mark set insert "$last +1 lines"
   $text tag remove sel {*}$selected
   lappend tEdit::folds($text) $fold
   .menu.edit entryconfigure "Unfold All" -state normal
@@ -606,10 +606,11 @@ proc searchAll {what} {
     set first "0.0"
     set last "end"
   }
+  set length 0
   set search_cmd [list $text search $tEdit::regexp -all -count length -- $what $first $last]
   if {[catch {set taglist [{*}$search_cmd]} msg]} {
     .cbsearch configure -style error.TCombobox
-    showMessage [lindex [split $msg :] 1]
+    showMessage [lindex [split $msg ":"] 1]
     return 1
   } elseif {$taglist eq ""} {
     .cbsearch configure -style error.TCombobox
@@ -619,7 +620,7 @@ proc searchAll {what} {
     .cbsearch configure -style valid.TCombobox
     set count 0
     foreach first $taglist {
-      set last "$first +[lindex $length $count] indices"
+      set last "${first} +[lindex $length $count] indices"
       $text tag add tag_search_all $first $last
       incr count
     }
@@ -768,12 +769,12 @@ proc lineNumbers {text canvas args} {
       if {[llength $dline] == 0} {break}
       set height [lindex $dline 3]
       set y [expr {[lindex $dline 1] + $tEdit::spacing1}]
-      set linenum [lindex [split $i .] 0]
+      set linenum [lindex [split $i "."] 0]
       set width [expr {[font measure $tEdit::textfont $linenum] + 5}]
       $canvas configure -width $width
       $canvas create text 2 $y -anchor nw -text $linenum \
         -font $font -fill [$text cget -foreground]
-      set i [$text index "${i} +1 lines"]
+      set i [$text index "$i +1 lines"]
     }
   }
 }
@@ -877,12 +878,12 @@ proc base64Encode {} {
     puts stderr "Cannot open: $filename is [file type $filename]"
     tk_messageBox -title "Cannot open file!" -icon error -type ok -parent . \
       -message "Cannot open file:" \
-      -detail "$filename\nis a [file type $filename]."
+      -detail "${filename}\nis a [file type $filename]."
     return 1
   }
   if {[catch {set data [open $filename r]} msg]} {
     puts stderr $msg
-    showMessage [lindex [split $msg :] 1]
+    showMessage [lindex [split $msg ":"] 1]
     return 1
   }
   chan configure $data -translation binary
@@ -1045,12 +1046,12 @@ proc systemDetails {} {
   tk_messageBox -title "System Details" -icon info -type ok -parent . \
     -message "Tcl/Tk Version: [info patchlevel]" \
     -detail "\
-      User Name:\t$::tcl_platform(user)\n\
+      User Name:\t${::tcl_platform(user)}\n\
       Hostname:\t[info hostname]\n\
-      OS Family:\t$::tcl_platform(platform)\n\
-      OS Identifier:\t$::tcl_platform(os)\n\
-      OS Version:\t$::tcl_platform(osVersion)\n\
-      Architecture:\t$::tcl_platform(machine)\n\
+      OS Family:\t${::tcl_platform(platform)}\n\
+      OS Identifier:\t${::tcl_platform(os)}\n\
+      OS Version:\t${::tcl_platform(osVersion)}\n\
+      Architecture:\t${::tcl_platform(machine)}\n\
       Window System:\t[tk windowingsystem]"
 }
 
