@@ -1,11 +1,12 @@
 **tEdit** is a simple tabbed text editor written in core [Tcl/Tk](https://www.tcl.tk).
 
-##### Features:
+### Features:
 * Tabs
 * Word Wrap
 * Mark Lines
 * Auto Indent
 * Block Indent
+* Go to Line
 * Line Numbers
 * Custom Folding
 * Block Selection
@@ -29,7 +30,7 @@
 ![Screenshot](screenshot.png "Screenshot")
 
 
-### DEPENDENCIES
+### Dependencies
 **Tcl** version 8.5 or later.
 
 **Tk** version 8.5 or later.
@@ -38,7 +39,7 @@
 [ActiveTcl](https://www.activestate.com/activetcl) version 8.5 or later.
 
 
-### LICENSE
+### License
 **tEdit** is licensed under the **MIT License**.
 
 Read LICENSE for details.
