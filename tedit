@@ -462,13 +462,65 @@ proc blockSelect {text x2 y2} {
 proc deleteSelection {text key} {
   if {[set selected [$text tag ranges sel]] eq ""} {
     switch -- $key {
-      "Delete"    {$text delete "insert"}
-      "Backspace" {$text delete "insert -1 indices"}
-      default     {return 1}
+      Delete    {$text delete "insert"}
+      Backspace {$text delete "insert -1 indices"}
+      default   {return 1}
     }
   } else {
     foreach {first last} $selected {
       $text delete $first $last
+    }
+  }
+}
+
+proc blockIndent {text action} {
+  if {$tEdit::softtabs eq "true"} {
+    set indent [string repeat " " $tEdit::tabsize]
+  } else {
+    set indent "\t"
+  }
+  # check if a selection exists
+  if {[set selected [$text tag ranges sel]] eq ""} {
+    foreach idx {linestart lineend} {
+      lappend blockindent [$text index "insert ${idx}"]
+    }
+  } else {
+    set first [expr {int([lindex $selected 0])}]
+    set last [expr {int([lindex $selected end])}]
+    for {set line $first} {$line <= $last} {incr line} {
+      if {[$text get "${line}.0" "${line}.end"] ne ""} {
+        lappend blockindent "${line}.0" "${line}.end"
+      }
+    }
+  }
+  switch -- $action {
+    increase {
+      foreach {first last} $blockindent {
+        $text insert $first $indent
+      }
+      showMessage "increased indentation"
+    }
+    decrease {
+      set indent [string length $indent]
+      set whitespace ""
+      foreach {first last} $blockindent {
+        $text search -regexp -all -count whitespace -- {^([ \t]*)} $first $last
+        if {$whitespace >= $indent} {
+          $text delete [$text index $first] [$text index "$first +${indent} indices"]
+        } elseif {$whitespace >= 1} {
+          $text delete [$text index $first] [$text index "$first +${whitespace} indices"]
+        } else {
+          set whitespace ""
+        }
+      }
+      if {$whitespace eq ""} {
+        showMessage "cannot decrease further"
+      } else {
+        showMessage "decreased indentation"
+      }
+    }
+    default {
+      return 1
     }
   }
 }
@@ -1100,6 +1152,11 @@ proc createMenus {} {
     .menu.file add command -label "Exit" -underline 1 \
       -accelerator "Ctrl+Shift+Q" -command {exit}
   .menu add cascade -label "Edit" -underline 0 -menu [menu .menu.edit]
+    .menu.edit add command -label "Increase Indent" -underline 0 \
+      -accelerator "Ctrl+I" -command {blockIndent [.nb select].text "increase"}
+    .menu.edit add command -label "Decrease Indent" -underline 0 \
+      -accelerator "Ctrl+U" -command {blockIndent [.nb select].text "decrease"}
+    .menu.edit add separator
     .menu.edit add command -label "Undo" -underline 0 \
       -accelerator "Ctrl+Z" -command {undoRedo "undo" [.nb select].text}
     .menu.edit add command -label "Redo" -underline 0 \
@@ -1391,7 +1448,8 @@ proc createWidgets {} {
 proc createBindings {} {
   # deactivate some predefined bindings from Text widget
   set bindings [list <Tab> <Control-Tab> <Control-Shift-Tab> <Control-a> \
-    <Control-e> <Control-w> <Control-y> <Control-o> <Control-z> <Control-Z> \
+    <Control-e> <Control-i> <Control-I> <Control-w> <Control-y> \
+    <Control-o> <Control-z> <Control-Z> \
   ]
   foreach keysym $bindings {
     bind Text $keysym {return 0}
@@ -1401,6 +1459,8 @@ proc createBindings {} {
   bind Text <<UndoStack>> {undoStack %W}
   bind Text <Control-z>   {.menu.edit invoke "Undo"}
   bind Text <Control-Z>   {.menu.edit invoke "Redo"}
+  bind Text <Control-i>   {.menu.edit invoke "Increase Indent"}
+  bind Text <Control-u>   {.menu.edit invoke "Decrease Indent"}
   bind Text <Control-x>   {.menu.edit invoke "Cut"}
   bind Text <Control-c>   {.menu.edit invoke "Copy"}
   bind Text <Control-v>   {.menu.edit invoke "Paste"}
