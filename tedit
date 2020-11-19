@@ -1012,6 +1012,8 @@ proc tabOptions {arg {tab ""}} {
 }
 
 proc focusTab {tab} {
+  # remove any leftover message
+  set tEdit::message ""
   set tEdit::filepath [file nativename $tEdit::filename($tab)]
   set text "${tab}.text"
   undoStack $text
@@ -1490,8 +1492,8 @@ proc createWidgets {} {
 proc createBindings {} {
   # deactivate some predefined bindings from Text widget
   set bindings [list <Tab> <Control-Tab> <Control-Shift-Tab> <Control-a> \
-    <Control-e> <Control-i> <Control-I> <Control-w> <Control-y> \
-    <Control-o> <Control-z> <Control-Z> \
+    <Control-e> <Control-i> <Control-w> <Control-y> <Control-o> \
+    <Control-z> <Control-Z> \
   ]
   foreach keysym $bindings {
     bind Text $keysym {return 0}
