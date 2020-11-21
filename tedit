@@ -627,10 +627,10 @@ proc unfoldText {text fold} {
 }
 
 proc searchOne {what {direction "nextrange"}} {
-  if {[searchAll $what] == 1} {return 1}
   if {$what ni $tEdit::hsearch} {
     lappend tEdit::hsearch $what
   }
+  if {[searchAll $what] == 1} {return 1}
   set text "[.nb select].text"
   if {$direction eq "prevrange"} {
     set insert "insert -1 indices"
@@ -704,6 +704,9 @@ proc replaceOne {what with} {
 }
 
 proc replaceAll {what with} {
+  if {$with ni $tEdit::hreplace} {
+    lappend tEdit::hreplace $with
+  }
   if {[searchAll $what] == 1} {
     showMessage "nothing to replace"
     return 1
@@ -712,8 +715,8 @@ proc replaceAll {what with} {
   set taglist [$text tag ranges tag_search_all]
   $text edit separator
   set count 0
-  foreach {x y} $taglist {
-    $text replace $x $y $with
+  foreach {first last} $taglist {
+    $text replace $first $last $with
     incr count
   }
   showMessage "replace finished: $count substitutions"
@@ -1492,7 +1495,7 @@ proc createWidgets {} {
 proc createBindings {} {
   # deactivate some predefined bindings from Text widget
   set bindings [list <Tab> <Control-Tab> <Control-Shift-Tab> <Control-a> \
-    <Control-e> <Control-i> <Control-w> <Control-y> <Control-o> \
+    <Control-e> <Control-f> <Control-i> <Control-w> <Control-y> <Control-o> \
     <Control-z> <Control-Z> \
   ]
   foreach keysym $bindings {
