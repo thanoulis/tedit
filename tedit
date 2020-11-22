@@ -324,8 +324,13 @@ proc askSave {tab text} {
   return 0
 }
 
-proc closeAll {} {
+proc closeAll {{noclose ""}} {
   foreach tab [.nb tabs] {
+    if {$noclose ne ""} {
+      if {$noclose eq $tab} {
+        continue
+      }
+    }
     .nb select $tab
     if {[closeTab $tab] == 2} {return 2}
   }
@@ -1055,11 +1060,13 @@ proc focusTab {tab} {
 
 proc tabsMenu {W x y X Y} {
   .menutabs.goto delete 0 end
-  .menutabs delete 0 1
-  .menutabs insert 0 command -label "New Tab" -underline 5 \
+  .menutabs delete 0 2
+  .menutabs insert 0 command -label "New Tab" -underline 4 \
     -command [list newTab [lindex [$W index @${x},${y}]]]
   .menutabs insert 1 command -label "Close Tab" -underline 0 \
     -command [list closeTab [lindex [$W tabs] [$W index @${x},${y}]]]
+  .menutabs insert 2 command -label "Close Others" -underline 6 \
+    -command [list closeAll [lindex [$W tabs] [$W index @${x},${y}]]]
   foreach tabid [$W tabs] {
     set tabname [$W tab $tabid -text]
     .menutabs.goto add command -label $tabname -command "$W select $tabid"
@@ -1353,11 +1360,11 @@ proc createMenus {} {
    -accelerator "F1" -command {helpAbout}
 
   # popup menu for managing tabs
+  # dummy labels will be replaced after tabsMenu proc
   menu .menutabs
-    .menutabs add command -label "New Tab" -underline 5 \
-      -command {.menu.file invoke "New Tab"}
-    .menutabs add command -label "Close Tab" -underline 0 \
-      -command {.menu.file invoke "Close Tab"}
+    .menutabs add command -label "New Tab - Dummy Label"
+    .menutabs add command -label "Close Tab - Dummy Label"
+    .menutabs add command -label "Close Others - Dummy Label"
     .menutabs add separator
     .menutabs add cascade -label "Go To" -underline 0 -menu [menu .menutabs.goto]
     .menutabs add separator
@@ -1366,7 +1373,7 @@ proc createMenus {} {
     .menutabs add command -label "Exit" -underline 1 \
       -command {.menu.file invoke "Exit"}
 
-  # popup menu for search and replace comboboxes
+  # popup menu for comboboxes
   menu .menucbx
     .menucbx add command -label "Cut" \
       -underline 2 -accelerator "Ctrl+X" \
@@ -1514,8 +1521,8 @@ proc createWidgets {} {
 proc createBindings {} {
   # deactivate some predefined bindings from Text widget
   set bindings [list <Tab> <Control-Tab> <Control-Shift-Tab> <Control-a> \
-    <Control-e> <Control-f> <Control-i> <Control-w> <Control-y> <Control-o> \
-    <Control-z> <Control-Z> \
+    <Control-b> <Control-f> <Control-e> <Control-n> <Control-i> <Control-o> \
+    <Control-w> <Control-y> <Control-z> <Control-Z> \
   ]
   foreach keysym $bindings {
     bind Text $keysym {return 0}
