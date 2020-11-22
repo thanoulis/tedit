@@ -633,19 +633,32 @@ proc searchOne {what {direction "nextrange"}} {
   if {[searchAll $what] == 1} {return 1}
   set text "[.nb select].text"
   if {$direction eq "prevrange"} {
-    set insert "insert -1 indices"
+    set newpos "insert -1 indices"
     set loop "end-1 end"
   } else {
-    set insert "insert +1 indices"
+    set newpos "insert +1 indices"
     set loop "0 1"
   }
-  set tagindex [$text tag $direction tag_search_all $insert]
-  if {$tagindex eq ""}  {
-    set tagindex [lrange [$text tag ranges tag_search_all] {*}$loop]
+  set taglist [$text tag ranges tag_search_all]
+  set lastsearch [$text tag ranges tag_search]
+  set tagsearch [$text tag $direction tag_search_all insert]
+  # if same search, move insert by one
+  if {$tagsearch eq $lastsearch} {
+    set tagsearch [$text tag $direction tag_search_all $newpos]
   }
-  $text tag add tag_search {*}$tagindex
+  # if search returns null, search from top/bottom
+  if {$tagsearch eq ""}  {
+    set tagsearch [lrange $taglist {*}$loop]
+  }
+  clearHighlight "tag_search"
+  $text tag add tag_search {*}$tagsearch
   $text mark set insert tag_search.first
   $text see tag_search.first
+  set sum [expr {[llength $taglist] / 2}]
+  set count [lsearch -exact $taglist [lindex $tagsearch 0]]
+  set count [expr {($count / 2) + 1}]
+  set matches [expr {$sum == 1 ? "match" : "matches"}]
+  showMessage "$count of $sum $matches"
 }
 
 proc searchAll {what} {
@@ -654,7 +667,6 @@ proc searchAll {what} {
     return 1
   }
   set text "[.nb select].text"
-  clearHighlight "tag_search tag_search_all"
   # search only in selection if exists
   if {[$text tag ranges sel] ne ""} {
     set first "sel.first"
@@ -674,6 +686,7 @@ proc searchAll {what} {
     showMessage "no matches found"
     return 1
   } else {
+    clearHighlight "tag_search_all"
     .cbsearch configure -style valid.TCombobox
     set count 0
     foreach first $taglist {
@@ -681,22 +694,24 @@ proc searchAll {what} {
       $text tag add tag_search_all $first $last
       incr count
     }
-    set matches [expr {$count == 1 ? "match" : "matches"}]
-    showMessage "$count $matches found"
   }
 }
 
 proc replaceOne {what with} {
-  set text "[.nb select].text"
   if {$with ni $tEdit::hreplace} {
     lappend tEdit::hreplace $with
   }
-  if {[set taglist [$text tag ranges tag_search]] eq ""} {
-    searchOne $what
-  }
-  if {[set taglist [$text tag ranges tag_search]] eq ""} {
-    showMessage "nothing to replace"
+  if {$what eq $with} {
+    showMessage "search and replace are same"
     return 1
+  }
+  set text "[.nb select].text"
+  # if tag_search is empty, search for the first time
+  if {[set taglist [$text tag ranges tag_search]] eq ""} {
+    if {[searchOne $what] == 1} {
+      showMessage "nothing to replace"
+      return 1
+    }
   }
   $text edit separator
   $text replace {*}$taglist $with
@@ -706,6 +721,10 @@ proc replaceOne {what with} {
 proc replaceAll {what with} {
   if {$with ni $tEdit::hreplace} {
     lappend tEdit::hreplace $with
+  }
+  if {$what eq $with} {
+    showMessage "search and replace are same"
+    return 1
   }
   if {[searchAll $what] == 1} {
     showMessage "nothing to replace"
@@ -774,7 +793,7 @@ proc markNext {markbox} {
     if {$mark eq ""} {set mark 0.0}
     set mark [$text mark next $mark]
   }
-  set index [lsearch $tEdit::marks($text) $mark]
+  set index [lsearch -exact $tEdit::marks($text) $mark]
   $markbox selection clear 0 end
   $markbox selection set $index
   $markbox activate $index
@@ -803,7 +822,7 @@ proc markDelete {which} {
     default {
       $text mark unset $which
       $text tag delete $which
-      $markbox delete [lsearch $tEdit::marks($text) $which]
+      $markbox delete [lsearch -exact $tEdit::marks($text) $which]
     }
   }
   if {[llength $tEdit::marks($text)] == 0} {
