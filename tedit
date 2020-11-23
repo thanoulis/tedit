@@ -185,7 +185,7 @@ proc closeTab {tab {nb ".nb"}} {
 
 proc openFileDialog {} {
   set filenames [tk_getOpenFile -title "Open File" -parent . \
-    -filetypes $tEdit::filetypes -multiple yes]
+    -filetypes $tEdit::filetypes -multiple true]
   if {$filenames eq ""} {return 2}
   foreach filename $filenames {
       openFile $filename
@@ -399,7 +399,7 @@ proc toggleBrowser {show} {
 proc textCopyCut {text action} {
   if {[set selected [$text tag ranges sel]] eq ""} {return 1}
   if {[llength $selected] > 2} {
-    set prev [lindex $selected 0]
+    set prev [$text index sel.first]
     foreach {first last} $selected {
       set lines [expr {$first - $prev}]
       if {$lines >= 2} {
@@ -490,7 +490,7 @@ proc blockIndent {text action} {
   # check if a selection exists
   if {[set selected [$text tag ranges sel]] eq ""} {
     foreach idx {linestart lineend} {
-      lappend blockindent [$text index "insert ${idx}"]
+      lappend blockindent [$text index "insert $idx"]
     }
   } else {
     set first [expr {int([lindex $selected 0])}]
@@ -576,56 +576,68 @@ proc foldText {text} {
     showMessage "select lines to fold"
     return 1
   }
-  if {[set fold_sum [$text count -lines {*}$selected]] == 0} {
+  set first [$text index "sel.first linestart"]
+  set firsteol [$text index "sel.first lineend"]
+  set last [$text index "sel.last lineend"]
+  set intfirst [expr {int($first)}]
+  set intlast [expr {int($last)}]
+  if {[set foldsum [expr {($last - $first) + 1}]] == 1} {
     showMessage "cannot fold a single line"
     return 1
   }
-  scan $selected {%d.%d %d.%d} yfrom xfrom yto xto
   # check if any older folds exist in current selection
-  foreach old_fold $tEdit::folds($text) {
-    scan [$text tag ranges $old_fold] {%d.%d %d.%d} old_yfrom old_xfrom old_yto old_xto
-    if {$yfrom <= $old_yfrom && $yto >= $old_yto} {
-      $old_fold invoke
+  # and unfold them
+  foreach old $tEdit::folds($text) {
+    set oldtag [$text tag ranges $old]
+    set oldfirst [lindex $oldtag 0]
+    set oldlast [lindex $oldtag end]
+    if {[$text compare $first <= $oldfirst] && [$text compare $last >= $oldlast]} {
+      $old invoke
     }
   }
-  set first "${yfrom}.0"
-  set last "${yto}.end"
   # get first line to show in fold button text
-  set fold_text [$text get $first "${yfrom}.end"]
-  set button_text "\u25b6\u25b6 [incr fold_sum] lines: $fold_text"
-  set fold "${text}.fold${yfrom}-${yto}"
-  tk::button $fold -text $button_text -relief flat -padx 0 -pady 0 \
+  set buttontext "\u25b6\u25b6 $foldsum lines: [$text get $first $firsteol]"
+  set fold "${text}.fold${intfirst}-${intlast}]"
+  tk::button $fold -text $buttontext -relief flat -padx 0 -pady 0 \
     -takefocus 0 -cursor "hand2" -font $tEdit::textfont \
     -background [$text cget -background] \
     -foreground [$text cget -foreground] \
-    -command [list unfoldText $text $fold]
+    -command [list unfoldText $text $fold $first]
   $text tag add $fold $first $last
   $text tag configure $fold -elide true
   $text window create $first -window $fold
   $text mark set insert "$last +1 lines"
-  $text tag remove sel {*}$selected
+  selection clear
   lappend tEdit::folds($text) $fold
   .menu.edit entryconfigure "Unfold All" -state normal
 }
 
-proc unfoldText {text fold} {
+proc unfoldText {text fold index} {
+  # store modified flag, to restore it later
+  set modified [$text edit modified]
   switch -- $fold {
     all {
       foreach fold $tEdit::folds($text) {
         $text tag configure $fold -elide false
         $text tag delete $fold
         destroy $fold
+        $text delete $index
       }
       set tEdit::folds($text) [list]
     }
     default {
       $text tag configure $fold -elide false
       $text tag delete $fold
+      # destroy fold button (same name with fold tag)
       destroy $fold
+      # delete the extra index which held the button
+      $text delete $index
       set tEdit::folds($text) \
         [lsearch -inline -all -not -exact $tEdit::folds($text) $fold]
     }
   }
+  # restore modified flag ('$text delete $index' modifies $text)
+  $text edit modified $modified
   if {[llength $tEdit::folds($text)] == 0} {
     .menu.edit entryconfigure "Unfold All" -state disabled
   }
@@ -639,10 +651,10 @@ proc searchOne {what {direction "nextrange"}} {
   set text "[.nb select].text"
   if {$direction eq "prevrange"} {
     set newpos "insert -1 indices"
-    set loop "end-1 end"
+    set loop [list end-1 end]
   } else {
     set newpos "insert +1 indices"
-    set loop "0 1"
+    set loop [list 0 1]
   }
   set taglist [$text tag ranges tag_search_all]
   set lastsearch [$text tag ranges tag_search]
