@@ -32,6 +32,8 @@ namespace eval tEdit {
   variable goto        {}
   variable hgoto       [list]
   variable showgoto    {false}
+  variable blockselect [list]
+  variable blockpaste  {false}
   variable search      {}
   variable hsearch     [list]
   variable regexp      {-exact}
@@ -58,13 +60,11 @@ namespace eval tEdit {
   variable theme       [ttk::style theme use]
   variable tabsize     2
   variable softtabs    {true}
-  variable blockselect [list]
-  variable blockpaste  0
-}
 
-namespace eval DnD {
-  variable timer {}
-  variable start {}
+  namespace eval DnD {
+    variable timer {}
+    variable start {}
+  }
 }
 
 ################################################################################
@@ -415,19 +415,19 @@ proc textCopyCut {text action} {
     set data [string trimright $data "\n"]
     clipboard clear
     clipboard append -type STRING -- $data
-    set tEdit::blockpaste 1
+    set tEdit::blockpaste "true"
   } else {
     if {$action eq "Cut"} {
       tk_textCut $text
     } else {
       tk_textCopy $text
     }
-    set tEdit::blockpaste 0
+    set tEdit::blockpaste "false"
   }
 }
 
 proc textPaste {text} {
-  if {$tEdit::blockpaste == 1} {
+  if {$tEdit::blockpaste eq "true"} {
     set type [expr {[tk windowingsystem] eq "x11" ? "UTF8_STRING" : "STRING"}]
     set data [split [clipboard get -type $type] "\n"]
     set cursor [$text index insert]
@@ -579,9 +579,9 @@ proc foldText {text} {
   set first [$text index "sel.first linestart"]
   set firsteol [$text index "sel.first lineend"]
   set last [$text index "sel.last lineend"]
-  set intfirst [expr {int($first)}]
-  set intlast [expr {int($last)}]
-  if {[set foldsum [expr {($last - $first) + 1}]] == 1} {
+  set dfirst [expr {int($first)}]
+  set dlast [expr {int($last)}]
+  if {[set foldsum [expr {($dlast - $dfirst) + 1}]] == 1} {
     showMessage "cannot fold a single line"
     return 1
   }
@@ -597,7 +597,7 @@ proc foldText {text} {
   }
   # get first line to show in fold button text
   set buttontext "\u25b6\u25b6 $foldsum lines: [$text get $first $firsteol]"
-  set fold "${text}.fold${intfirst}-${intlast}]"
+  set fold "${text}.fold${dfirst}-${dlast}]"
   tk::button $fold -text $buttontext -relief flat -padx 0 -pady 0 \
     -takefocus 0 -cursor "hand2" -font $tEdit::textfont \
     -background [$text cget -background] \
@@ -888,7 +888,11 @@ proc lineNumbers {text canvas args} {
       set height [lindex $dline 3]
       set y [expr {[lindex $dline 1] + $tEdit::spacing1}]
       set linenum [lindex [split $i "."] 0]
-      set width [expr {[font measure $tEdit::textfont $linenum] + 5}]
+      if {$linenum > 999} {
+        set width [expr {[font measure $tEdit::textfont $linenum] + 5}]
+      } else {
+        set width [expr {[font measure $tEdit::textfont "000"] + 5}]
+      }
       $canvas configure -width $width
       $canvas create text 2 $y -anchor nw -text $linenum \
         -font $font -fill [$text cget -foreground]
@@ -1099,15 +1103,15 @@ proc prevTab {{nb ".nb"}} {
 }
 
 proc dragDelay {W x y X Y} {
-  set DnD::timer [list dragTab $W $x $y $X $Y]
-  after 200 $DnD::timer
+  set tEdit::DnD::timer [list dragTab $W $x $y $X $Y]
+  after 200 $tEdit::DnD::timer
 }
 
 proc dragTab {W x y X Y} {
-  set DnD::timer ""
-  set DnD::start [$W index @$x,$y]
+  set tEdit::DnD::timer ""
+  set tEdit::DnD::start [$W index @$x,$y]
   # check for a valid start
-  if {[string is integer -strict $DnD::start]} {
+  if {[string is integer -strict $tEdit::DnD::start]} {
     # create window to show when drag
     set tabid [lindex [$W tabs] [$W index @$x,$y]]
     set tabtext [$W tab $tabid -text]
@@ -1126,12 +1130,12 @@ proc dragTab {W x y X Y} {
 
 proc dropTab {W x y} {
   focus [.nb select].text
-  if {$DnD::timer ne ""} {
-    after cancel $DnD::timer
+  if {$tEdit::DnD::timer ne ""} {
+    after cancel $tEdit::DnD::timer
     return 0
   }
   $W configure -cursor "left_ptr"
-  set from $DnD::start
+  set from $tEdit::DnD::start
   # check for a valid source
   if {[string is integer -strict $from]} {
     set to [$W index @$x,$y]
@@ -1141,7 +1145,7 @@ proc dropTab {W x y} {
       $W insert $to $tab
     }
   }
-  set DnD::start ""
+  set tEdit::DnD::start ""
   bind $W <Motion> {return 0}
   destroy .dnd
 }
@@ -1159,7 +1163,7 @@ proc moveTab {W x y X Y} {
 proc cancelDnD {W} {
   if {[winfo exists .dnd]} {
     $W configure -cursor "left_ptr"
-    set DnD::start ""
+    set tEdit::DnD::start ""
     bind $W <Motion> {return 0}
     destroy .dnd
   }
@@ -1180,7 +1184,7 @@ proc systemDetails {} {
 
 proc helpAbout {} {
   tk_messageBox -title "About tEdit" -icon info -type ok -parent . \
-    -message "tEdit 1.7.3" -detail \
+    -message "tEdit 1.7.4" -detail \
 {A simple tabbed text editor,
 written in core Tcl/Tk.
 
@@ -1603,7 +1607,7 @@ proc createBindings {} {
   # on tab change reload user settings (except font and line numbering)
   bind .nb <<NotebookTabChanged>> {focusTab [%W select]}
   # popup menu on tab labels
-  bind .nb <ButtonPress-3> {cancelDnD %W;tabsMenu %W %x %y %X %Y}
+  bind .nb <ButtonPress-3> {cancelDnD %W; tabsMenu %W %x %y %X %Y}
   # mouse wheel rotate tabs
   bind .nb <4> {nextTab}
   bind .nb <5> {prevTab}
