@@ -1,6 +1,10 @@
 #!/usr/bin/env tclsh
 
 package require Tk
+# force utf-8 on windows wrapped exe (freewrap workaround)
+if {$::tcl_platform(platform) eq "windows" && [encoding system] ne "utf-8" } {
+  encoding system utf-8
+}
 
 ################################################################################
 # VARIABLES
@@ -326,10 +330,9 @@ proc askSave {tab text} {
 
 proc closeAll {{noclose ""}} {
   foreach tab [.nb tabs] {
-    if {$noclose ne ""} {
-      if {$noclose eq $tab} {
-        continue
-      }
+    # 'close others' tabs menu command
+    if {$tab eq $noclose} {
+      continue
     }
     .nb select $tab
     if {[closeTab $tab] == 2} {return 2}
@@ -1184,7 +1187,7 @@ proc systemDetails {} {
 
 proc helpAbout {} {
   tk_messageBox -title "About tEdit" -icon info -type ok -parent . \
-    -message "tEdit 1.7.4" -detail \
+    -message "tEdit 1.7.5" -detail \
 {A simple tabbed text editor,
 written in core Tcl/Tk.
 
