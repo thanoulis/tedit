@@ -233,8 +233,8 @@ proc getPipedData {} {
     append data $line "\n"
   }
   chan event stdin readable {}
-  set data [string trimright $data "\n"]
-  if {[llength $data] > 0} {
+  set data [string range $data 0 end-1]
+  if {[string length $data] > 0} {
     set text [newTab {} "<<STDIN>>"]
     $text insert end $data
   }
@@ -600,7 +600,7 @@ proc foldText {text} {
   }
   # get first line to show in fold button text
   set buttontext "\u25b6\u25b6 $foldsum lines: [$text get $first $firsteol]"
-  set fold "${text}.fold${dfirst}-${dlast}]"
+  set fold [string cat $text ".fold" $dfirst "-" $dlast]
   tk::button $fold -text $buttontext -relief flat -padx 0 -pady 0 \
     -takefocus 0 -cursor "hand2" -font $tEdit::textfont \
     -background [$text cget -background] \
