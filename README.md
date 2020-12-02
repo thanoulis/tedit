@@ -45,9 +45,13 @@
 
 **Tk** version 8.6 or later.
 
-##### For MS-Windows users:
+##### For Microsoft Windows users:
 
 [ActiveTcl](https://www.activestate.com/activetcl) version 8.6 or later.
+
+Executable can be found in the [Releases](https://github.com/thanoulis/tedit/releases) section.
+
+To run it, after download, right-click->Properties->Unblock.
 
 ----
 
