@@ -1187,7 +1187,7 @@ proc systemDetails {} {
 
 proc helpAbout {} {
   tk_messageBox -title "About tEdit" -icon info -type ok -parent . \
-    -message "tEdit 1.7.5" -detail \
+    -message "tEdit 1.7.6" -detail \
 {A simple tabbed text editor,
 written in core Tcl/Tk.
 
