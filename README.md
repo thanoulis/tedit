@@ -41,13 +41,13 @@
 
 ### Dependencies
 
-**Tcl** version 8.5 or later.
+**Tcl** version 8.6 or later.
 
-**Tk** version 8.5 or later.
+**Tk** version 8.6 or later.
 
 ##### For MS-Windows users:
 
-[ActiveTcl](https://www.activestate.com/activetcl) version 8.5 or later.
+[ActiveTcl](https://www.activestate.com/activetcl) version 8.6 or later.
 
 ----
 
