@@ -10,9 +10,13 @@ if {$::tcl_platform(platform) eq "windows" && [encoding system] ne "utf-8" } {
 # VARIABLES
 #
 namespace eval tEdit {
+  variable filename
   array set filename   {}
+  variable folds
   array set folds      {}
+  variable marks
   array set marks      {}
+  variable marknum
   array set marknum    {}
 
   variable version     {1.7.6}
@@ -863,7 +867,7 @@ proc gotoLine {text what} {
       showMessage "gone to line $what"
     } else {
       .cbgoto configure -style error.TCombobox
-      showMessage "line $what not exist"
+      showMessage "line $what not exists"
     }
   } else {
     .cbgoto configure -style error.TCombobox
