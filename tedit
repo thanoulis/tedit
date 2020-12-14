@@ -1565,6 +1565,9 @@ proc createBindings {} {
   bind Text <Delete>    {deleteSelection %W "Delete"}
   bind Text <BackSpace> {deleteSelection %W "Backspace"}
 
+  # do not keep selection on combobox select
+  bind TCombobox <<ComboboxSelected>> {%W selection clear}
+
   # global window bindings
   foreach keysym {<Escape> <ButtonRelease-1>} {
     bind all $keysym {cancelDnD .tree}
