@@ -79,10 +79,10 @@ namespace eval tEdit {
 ################################################################################
 # PROCEDURES
 #
-proc showMessage {msg} {
+proc showMessage {msg {timer 5000}} {
   after cancel {set tEdit::message ""}
   set tEdit::message $msg
-  after 5000 {set tEdit::message ""}
+  after $timer {set tEdit::message ""}
 }
 
 proc recentAdd {filename} {
