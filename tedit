@@ -616,18 +616,14 @@ proc foldText {text} {
   .menu.edit entryconfigure "Unfold All" -state normal
 }
 
-proc unfoldText {text fold index} {
+proc unfoldText {text fold {index ""}} {
   # store modified flag, to restore it later
   set modified [$text edit modified]
   switch -- $fold {
     all {
       foreach fold $tEdit::folds($text) {
-        $text tag configure $fold -elide false
-        $text tag delete $fold
-        destroy $fold
-        $text delete $index
+        $fold invoke
       }
-      set tEdit::folds($text) [list]
     }
     default {
       $text tag configure $fold -elide false
