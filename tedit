@@ -871,7 +871,7 @@ proc gotoLine {text what} {
     }
   } else {
     .cbgoto configure -style error.TCombobox
-    showMessage "not a valid line number"
+    showMessage "not a line number"
   }
 }
 
