@@ -900,7 +900,7 @@ proc lineNumbers {text canvas args} {
       $canvas configure -width $width
       $canvas create text 2 $y -anchor nw -text $linenum \
         -font $font -fill [$text cget -foreground]
-      set i [$text index "$i +1 lines"]
+      set i [$text index "$i +1 lines linestart"]
     }
   }
 }
