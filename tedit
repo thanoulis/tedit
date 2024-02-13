@@ -57,6 +57,7 @@ namespace eval tEdit {
   variable showstatus  {true}
   variable showyscroll {true}
   variable showxscroll {true}
+  variable precision   3
   variable autoindent  {true}
   variable wrap        {none}
   variable blinkcursor 300
@@ -74,6 +75,28 @@ namespace eval tEdit {
     variable timer {}
     variable start {}
   }
+}
+# add precision and math functions
+# for use with [calculateExpr]
+namespace eval tcl::mathfunc {
+  proc precision {number precision} {
+    expr {double(round(10 ** $precision * $number)) / 10 ** $precision}
+  }
+  # trigonometric functions with degrees
+  proc sind  {x} {expr {sin($x * acos(-1) / 180)}}
+  proc cosd  {x} {expr {cos($x * acos(-1) / 180)}}
+  proc tand  {x} {expr {tan($x * acos(-1) / 180)}}
+  proc asind {x} {expr {asin($x) * 180 / acos(-1)}}
+  proc acosd {x} {expr {acos($x) * 180 / acos(-1)}}
+  proc atand {x} {expr {atan($x) * 180 / acos(-1)}}
+  # teach safe interpreter the new functions
+  foreach function [info procs [namespace current]::*] {
+    $tEdit::safe alias $function $function
+  }
+  # use ln() instead of log()
+  $tEdit::safe alias [namespace current]::ln  [namespace current]::log
+  # use log() instead of log10()
+  $tEdit::safe alias [namespace current]::log [namespace current]::log10
 }
 
 ################################################################################
@@ -572,9 +595,19 @@ proc calculateExpr {text} {
     set last [$text index sel.last]
   }
   set math [$text get $first $last]
-  if {[catch {set result [$tEdit::safe eval "expr [string map {/ *1.0/} $math]"]} msg]} {
+  try {
+    $tEdit::safe eval [list expr [string map {/ *1.0/} $math]]
+  } on error msg {
+    puts stderr [lindex [split $msg "\n"] 0]
     showMessage [lindex [split $msg "\n"] 0]
-  } else {
+  } on ok result {
+    # round to user defined decimal points
+    set result [expr {precision($result,$tEdit::precision)}]
+    # avoid printing extra decimal zeros
+    set result0 [expr {round($result)}]
+    if {$result0 == $result} {
+      set result $result0
+    }
     $text insert $last " = $result"
   }
 }
@@ -1307,6 +1340,13 @@ proc createMenus {} {
       -variable tEdit::showgoto -onvalue "true" -offvalue "false" \
       -command {toggleView .fgoto $tEdit::showgoto}
   .menu add cascade -label "Options" -underline 0 -menu [menu .menu.options]
+    .menu.options add cascade -label "Precision" -underline 0 \
+      -menu [menu .menu.options.precision]
+      for {set i 0} {$i <= 15} {incr i} {
+        .menu.options.precision add radiobutton -label $i -underline 0 \
+          -variable tEdit::precision -value $i
+      }
+    .menu.options add separator
     .menu.options add checkbutton -label "Autoindent" -underline 0 \
       -variable tEdit::autoindent -onvalue "true" -offvalue "false" \
       -command {tabOptions "Indent"}
