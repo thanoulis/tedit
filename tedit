@@ -598,8 +598,9 @@ proc calculateExpr {text} {
   try {
     $tEdit::safe eval [list expr [string map {/ *1.0/} $math]]
   } on error msg {
-    puts stderr [lindex [split $msg "\n"] 0]
-    showMessage [lindex [split $msg "\n"] 0]
+    set msg [lindex [split $msg "\n"] 0]
+    puts stderr $msg
+    showMessage $msg
   } on ok result {
     # round to user defined decimal points
     set result [expr {precision($result,$tEdit::precision)}]
