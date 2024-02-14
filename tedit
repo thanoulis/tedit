@@ -19,7 +19,7 @@ namespace eval tEdit {
   variable marknum
   array set marknum    {}
 
-  variable version     {1.7.8}
+  variable version     {1.7.9}
   variable safe        [interp create -safe]
   variable filepath    {}
   variable message     {}
@@ -598,9 +598,7 @@ proc calculateExpr {text} {
   try {
     $tEdit::safe eval [list expr [string map {/ *1.0/} $math]]
   } on error msg {
-    set msg [lindex [split $msg "\n"] 0]
-    puts stderr $msg
-    showMessage $msg
+    showMessage [lindex [split $msg "\n"] 0]
   } on ok result {
     # round to user defined decimal points
     set result [expr {precision($result,$tEdit::precision)}]
