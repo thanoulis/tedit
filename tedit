@@ -18,12 +18,14 @@ namespace eval tEdit {
   array set marks      {}
   variable marknum
   array set marknum    {}
+  variable modified
+  array set modified   {}
 
   variable version     {1.7.10}
   variable safe        [interp create -safe]
   variable filepath    {}
   variable message     {}
-  variable modified    {}
+  variable encoding    [encoding system]
   variable tabnum      0
   variable untitlednum 1
   variable savename    {}
@@ -123,7 +125,7 @@ proc recentAdd {filename} {
 }
 
 proc setModified {text} {
-  set tEdit::modified [expr {[$text edit modified] ? "Modified" : ""}]
+  set tEdit::modified(text) [expr {[$text edit modified] ? "\u2022" : ""}]
 }
 
 proc newTab {{position ""} {filename ""}} {
@@ -136,12 +138,14 @@ proc newTab {{position ""} {filename ""}} {
     {text}     "${nb}.tab${tabnum}.text"\
     {yscroll}  "${nb}.tab${tabnum}.yscroll"\
     {xscroll}  "${nb}.tab${tabnum}.xscroll"\
+    {modified} "${nb}.tab${tabnum}.modified"\
   ]
   # set arrays specific to this tab
   array set tEdit::filename [list $tab(tab) $filename]
   array set tEdit::folds    [list $tab(text) [list]]
   array set tEdit::marks    [list $tab(text) [list]]
   array set tEdit::marknum  [list $tab(text) 0]
+  array set tEdit::modified [list $tab(text) ""]
   # increase tab number for future use
   incr tEdit::tabnum
 
@@ -160,11 +164,13 @@ proc newTab {{position ""} {filename ""}} {
       $tab(text) tag raise tag_search tag_search_all
     ttk::scrollbar $tab(yscroll) -orient vertical   -command [list $tab(text) yview]
     ttk::scrollbar $tab(xscroll) -orient horizontal -command [list $tab(text) xview]
+    ttk::label $tab(modified) -textvariable tEdit::modified(text)
 
-    grid $tab(canvas)  -in $tab(tab) -row 0 -column 0 -sticky ns
-    grid $tab(text)    -in $tab(tab) -row 0 -column 1 -sticky nswe
-    grid $tab(yscroll) -in $tab(tab) -row 0 -column 2 -sticky ns
-    grid $tab(xscroll) -in $tab(tab) -row 1 -column 0 -sticky we -columnspan 2
+    grid $tab(canvas)   -in $tab(tab) -row 0 -column 0 -sticky ns
+    grid $tab(text)     -in $tab(tab) -row 0 -column 1 -sticky nswe
+    grid $tab(yscroll)  -in $tab(tab) -row 0 -column 2 -sticky ns
+    grid $tab(xscroll)  -in $tab(tab) -row 1 -column 0 -sticky we -columnspan 2
+    grid $tab(modified) -in $tab(tab) -row 1 -column 2
     grid rowconfigure    $tab(tab) $tab(text) -weight 1
     grid columnconfigure $tab(tab) $tab(text) -weight 1
     # remove canvas from view
@@ -1212,7 +1218,7 @@ proc cancelDnD {W} {
 }
 
 proc systemDetails {} {
-  tk_messageBox -title "System Details" -icon info -type ok -parent . \
+  tk_messageBox -title "System Information" -icon info -type ok -parent . \
     -message "Tcl/Tk Version: [info patchlevel]" \
     -detail "\
       User Name:\t${::tcl_platform(user)}\n\
@@ -1221,7 +1227,8 @@ proc systemDetails {} {
       OS Identifier:\t${::tcl_platform(os)}\n\
       OS Version:\t${::tcl_platform(osVersion)}\n\
       Architecture:\t${::tcl_platform(machine)}\n\
-      Window System:\t[tk windowingsystem]"
+      Window System:\t[tk windowingsystem]\n\
+      Encoding:\t[encoding system]"
 }
 
 proc helpAbout {version} {
@@ -1418,7 +1425,7 @@ proc createMenus {} {
       -variable tEdit::softtabs -onvalue "true" -offvalue "false" \
       -command {tabOptions "TabKey"}
   .menu add cascade -label "Help" -underline 0 -menu [menu .menu.help]
-    .menu.help add command -label "System Details..." -underline 0 \
+    .menu.help add command -label "System..." -underline 0 \
       -command {systemDetails}
     .menu.help add separator
     .menu.help add command -label "About tEdit..." -underline 0 \
@@ -1556,11 +1563,11 @@ proc createWidgets {} {
   ttk::frame .statusbar -borderwidth 1 -relief sunken
     ttk::label .filepath -relief flat -anchor w -textvariable tEdit::filepath
     ttk::label .message  -relief flat -anchor c -textvariable tEdit::message
-    ttk::label .modified -relief flat -anchor e -textvariable tEdit::modified
+    ttk::label .encoding -relief flat -anchor e -textvariable tEdit::encoding
     ttk::sizegrip .sizegrip
     grid .filepath -in .statusbar -row 0 -column 0 -sticky w
     grid .message  -in .statusbar -row 0 -column 1 -sticky we
-    grid .modified -in .statusbar -row 0 -column 2 -sticky e
+    grid .encoding -in .statusbar -row 0 -column 2 -sticky e
     grid .sizegrip -in .statusbar -row 0 -column 3 -sticky e
     grid columnconfigure .statusbar .message -weight 1
 
