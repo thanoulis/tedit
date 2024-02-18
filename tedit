@@ -1118,8 +1118,6 @@ proc focusTab {tab} {
     .menu.marks entryconfigure $item \
       -state [expr {$tEdit::marks($text) eq "" ? "disabled" : "normal"}]
   }
-  # keep focusing the text widget while traversing tabs
-  focus $text
 }
 
 proc tabsMenu {W x y X Y} {
