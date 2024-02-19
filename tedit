@@ -1,10 +1,8 @@
 #!/usr/bin/env tclsh
 
 package require Tk
-# force utf-8 on windows wrapped exe (freewrap workaround)
-if {$::tcl_platform(platform) eq "windows" && [encoding system] ne "utf-8" } {
-  encoding system utf-8
-}
+# force utf-8 encoding (freewrap workaround)
+if {[encoding system] ne "utf-8"} {encoding system "utf-8"}
 
 ################################################################################
 # VARIABLES
@@ -304,14 +302,10 @@ proc saveFileDialog {} {
         -parent . -message "Cannot save [file tail $filename]:" \
         -detail "${filename}\nis read only."
       return 1
-    } else {
-      set tEdit::savename $filename
-      return 0
     }
-  } else {
-    set tEdit::savename $filename
-    return 0
   }
+  set tEdit::savename $filename
+  return 0
 }
 
 proc saveFile {filename text} {
