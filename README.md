@@ -7,6 +7,7 @@
 ### Features
 
 * Tabs
+* On Top
 * Word Wrap
 * Mark Lines
 * Auto Indent
