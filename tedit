@@ -57,6 +57,7 @@ namespace eval tEdit {
   variable showstatus  {true}
   variable showyscroll {true}
   variable showxscroll {true}
+  variable ontop       {false}
   variable precision   3
   variable autoindent  {true}
   variable wrap        {none}
@@ -1344,6 +1345,10 @@ proc createMenus {} {
       -variable tEdit::showgoto -onvalue "true" -offvalue "false" \
       -command {toggleView .fgoto $tEdit::showgoto}
   .menu add cascade -label "Options" -underline 0 -menu [menu .menu.options]
+    .menu.options add checkbutton -label "On Top" -underline 0 \
+      -variable tEdit::ontop -onvalue "true" -offvalue "false" \
+      -command {wm attributes . -topmost $tEdit::ontop}
+    .menu.options add separator
     .menu.options add cascade -label "Precision" -underline 0 \
       -menu [menu .menu.options.precision]
       for {set i 0} {$i <= 15} {incr i} {
@@ -1699,6 +1704,7 @@ startBrowser
 wm title    . "tEdit"
 wm minsize  . 460 300
 wm protocol . WM_DELETE_WINDOW {.menu.file invoke "Close All"}
+wm attributes . -topmost $tEdit::ontop
 
 ################################################################################
 # COMMAND LINE
