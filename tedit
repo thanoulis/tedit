@@ -61,7 +61,7 @@ namespace eval tEdit {
   variable precision   3
   variable autoindent  {true}
   variable wrap        {none}
-  variable blinkcursor 300
+  variable blinkcursor 500
   variable blockcursor {false}
   variable textfont    {TkFixedFont}
   variable spacing1    0
@@ -1364,7 +1364,7 @@ proc createMenus {} {
       -command {tabOptions "WordWrap"}
     .menu.options add separator
     .menu.options add checkbutton -label "Blink Cursor" -underline 0 \
-      -variable tEdit::blinkcursor -onvalue "300" -offvalue "0" \
+      -variable tEdit::blinkcursor -onvalue "500" -offvalue "0" \
       -command {tabOptions "BlinkCursor"}
     .menu.options add checkbutton -label "Block Cursor" -underline 4 \
       -variable tEdit::blockcursor -onvalue "true" -offvalue "false" \
