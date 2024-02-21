@@ -1374,21 +1374,21 @@ proc createMenus {} {
       -command {selectFont "[.nb select].text"}
     .menu.options add cascade -label "Line Spacing" -underline 0 \
       -menu [menu .menu.options.spacing]
-      .menu.options.spacing add cascade -label "Space Above Lines" -underline 6 \
+      .menu.options.spacing add cascade -label "Above Lines" -underline 0 \
         -menu [menu .menu.options.spacing.1]
         for {set i 0} {$i <= 9} {incr i} {
           .menu.options.spacing.1 add radiobutton -label $i -underline 0 \
             -variable tEdit::spacing1 -value $i \
             -command {tabOptions "Spacing1"}
         }
-      .menu.options.spacing add cascade -label "Space Between Warps" -underline 9 \
+      .menu.options.spacing add cascade -label "Between Wraps" -underline 8 \
         -menu [menu .menu.options.spacing.2]
         for {set i 0} {$i <= 9} {incr i} {
           .menu.options.spacing.2 add radiobutton -label $i -underline 0 \
             -variable tEdit::spacing2 -value $i \
             -command {tabOptions "Spacing2"}
         }
-      .menu.options.spacing add cascade -label "Space Below Lines" -underline 6 \
+      .menu.options.spacing add cascade -label "Below Lines" -underline 0 \
         -menu [menu .menu.options.spacing.3]
         for {set i 0} {$i <= 9} {incr i} {
           .menu.options.spacing.3 add radiobutton -label $i -underline 0 \
