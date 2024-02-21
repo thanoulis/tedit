@@ -19,7 +19,7 @@ namespace eval tEdit {
   variable modified
   array set modified   {}
 
-  variable version     {1.7.10}
+  variable version     {1.7.11}
   variable safe        [interp create -safe]
   variable filepath    {}
   variable message     {}
