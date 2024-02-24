@@ -1126,7 +1126,7 @@ proc tabsMenu {W x y X Y} {
     -command [list closeAll [lindex [$W tabs] [$W index @${x},${y}]]]
   foreach tabid [$W tabs] {
     set tabname [$W tab $tabid -text]
-    .menutabs.goto add command -label $tabname -command "$W select $tabid"
+    .menutabs.goto add command -label $tabname -command [list $W select $tabid]
   }
   tk_popup .menutabs $X $Y
 }
@@ -1407,8 +1407,8 @@ proc createMenus {} {
       -menu [menu .menu.options.colorscheme]
       foreach colorscheme {amber black blue brownsugar default gray green salmon sugar} {
         .menu.options.colorscheme add radiobutton -label $colorscheme \
-        -variable tEdit::colorscheme -value $colorscheme \
-        -command {tabOptions "ColorScheme"}
+          -variable tEdit::colorscheme -value $colorscheme \
+          -command {tabOptions "ColorScheme"}
       }
     .menu.options add separator
     .menu.options add cascade -label "Tab Size" -underline 0 \
@@ -1426,7 +1426,7 @@ proc createMenus {} {
       -command {systemDetails}
     .menu.help add separator
     .menu.help add command -label "About tEdit..." -underline 0 \
-   -accelerator "F1" -command {helpAbout $tEdit::version}
+      -accelerator "F1" -command {helpAbout $tEdit::version}
 
   # popup menu for managing tabs
   # dummy labels will be replaced after tabsMenu proc
