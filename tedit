@@ -772,6 +772,8 @@ proc replaceOne {what with} {
       showMessage "nothing to replace"
       return 1
     }
+    # recreate $taglist after search
+    set taglist [$text tag ranges tag_search]
   }
   $text edit separator
   $text replace {*}$taglist $with
@@ -1683,7 +1685,6 @@ proc createBindings {} {
   }
   bind .cbreplace <Return> {.breplace invoke}
   bind .cbsearch  <Return> {.bfindnext invoke}
-  bind .cbsearch <<ComboboxSelected>> {.bfindnext invoke}
 
   # go to line combobox
   bind .cbgoto <ButtonPress-3> {focus %W; tk_popup .menucbx %X %Y}
