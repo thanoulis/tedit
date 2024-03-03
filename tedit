@@ -1437,8 +1437,6 @@ proc createMenus {} {
     .menutabs add separator
     .menutabs add command -label "Close All" -underline 6 \
       -command {.menu.file invoke "Close All"}
-    .menutabs add command -label "Exit" -underline 1 \
-      -command {.menu.file invoke "Exit"}
 
   # popup menu for comboboxes
   menu .menucbx
