@@ -894,25 +894,21 @@ proc markDelete {which} {
   }
 }
 
-proc gotoLine {text what} {
-  if {$what eq ""} {return 1}
-  if {[string is digit $what]} {
-    if {$what ni $tEdit::hgoto} {
-      lappend tEdit::hgoto $what
-    }
-    if {$what <= [$text index "end -1 indices"]} {
-      set mark "${what}.0"
-      $text mark set insert $mark
-      $text see $mark
-      .cbgoto configure -style valid.TCombobox
-      showMessage "gone to line $what"
-    } else {
-      .cbgoto configure -style error.TCombobox
-      showMessage "line $what not exists"
-    }
+proc gotoLine {text line} {
+  if {$line eq ""} {return 1}
+  # $line is always digit, from combobox validation
+  if {$line ni $tEdit::hgoto} {
+    lappend tEdit::hgoto $line
+  }
+  if {$line <= [$text index "end -1 indices"]} {
+    set mark "${line}.0"
+    $text mark set insert $mark
+    $text see $mark
+    .cbgoto configure -style valid.TCombobox
+    showMessage "gone to line $line"
   } else {
     .cbgoto configure -style error.TCombobox
-    showMessage "not a line number"
+    showMessage "line $line does not exist"
   }
 }
 
@@ -1502,10 +1498,14 @@ proc createWidgets {} {
     ttk::label .lgoto -relief flat -text "Go to line:"
     ttk::combobox .cbgoto -takefocus 0 -style valid.TCombobox \
       -textvariable tEdit::goto -values $tEdit::hgoto \
+      -validate key -validatecommand {string is digit %P} \
       -postcommand {.cbgoto configure -values $tEdit::hgoto}
+    tk::button .bgoto -text "Go" -width 3 -padx 0 -pady 0 \
+      -underline 0 -takefocus 0 \
+      -command {gotoLine [.nb select].text $tEdit::goto}
     grid .lgoto  -in .fgoto -row 0 -column 0 -sticky w
     grid .cbgoto -in .fgoto -row 0 -column 1 -sticky w
-    grid columnconfigure .fgoto .cbgoto -weight 1
+    grid .bgoto  -in .fgoto -row 0 -column 2 -sticky w
 
   ttk::frame .fsearch -borderwidth 1 -relief sunken
     ttk::labelframe .lfsearch -borderwidth 1 -relief flat -text "Search for:"
@@ -1688,9 +1688,9 @@ proc createBindings {} {
 
   # go to line combobox
   bind .cbgoto <ButtonPress-3> {focus %W; tk_popup .menucbx %X %Y}
-  bind .cbgoto <Return> {gotoLine [.nb select].text $tEdit::goto}
+  bind .cbgoto <Return> {.bgoto invoke}
   bind .cbgoto <Escape> {.menu.show invoke "Go to line"}
-  bind .cbgoto <<ComboboxSelected>> {gotoLine [.nb select].text $tEdit::goto}
+  bind .cbgoto <<ComboboxSelected>> {.bgoto invoke}
 }
 
 ################################################################################
