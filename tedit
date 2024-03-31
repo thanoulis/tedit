@@ -1093,6 +1093,7 @@ proc tEdit::TabOptions {arg {tab ""}} {
 }
 
 proc tEdit::FocusTab {tab} {
+  wm title . "tEdit - [.nb tab $tab -text]"
   # remove any leftover message
   set tEdit::message ""
   set tEdit::filepath [file nativename $tEdit::filename($tab)]
